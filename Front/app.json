@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Awn Mobile",
+    "slug": "awn-new",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/images/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mohamed_ibrahim.awn_new"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.mohamed_ibrahim.awn_new",
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "INTERNET",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "يسمح تطبيق عون بالوصول لصورك لرفع صورة الطبيب الشخصية.",
+          "cameraPermission": "يسمح تطبيق عون بالوصول للكاميرا لالتقاط صورة الطبيب."
+        }
+      ]
+    ]
+  }
+}
