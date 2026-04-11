@@ -234,11 +234,27 @@ const updateDoctorProfile = async (req, res) => {
     }
 }
 
-// --- ✅ تحديث جدول المواعيد والإعدادات (مدة الكشف والراحة والإجازات) ---
+// --- ✅ تحديث جدول المواعيد والإعدادات (مدة الكشف والراحة والإجازات مع حماية) ---
 const updateDoctorSlots = async (req, res) => {
     try {
         const { docId, slots, duration, breakTime, offDays, startTime, endTime, breakStart } = req.body;
 
+        // 1. فحص وجود أي حجوزات نشطة قبل التحديث (لم تكتمل ولم تُلغى)
+        const activeAppointments = await appointmentModel.find({ 
+            docId: docId, 
+            cancelled: false, 
+            isCompleted: false 
+        });
+
+        // 2. إذا وجدت حجوزات نشطة نرفض الطلب لحماية بيانات المرضى
+        if (activeAppointments.length > 0) {
+            return res.json({ 
+                success: false, 
+                message: "لا يمكن تحديث الجدول وهناك حجوزات جارية. يرجى إنهاء المواعيد الحالية أولاً." 
+            });
+        }
+
+        // 3. التحديث في حال عدم وجود حجوزات
         await doctorModel.findByIdAndUpdate(docId, { 
             slots_available: slots || {},
             duration: duration !== undefined ? Number(duration) : 30,

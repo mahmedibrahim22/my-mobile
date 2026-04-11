@@ -100,8 +100,13 @@ const ManageSlotsScreen = () => {
     setPeriodModalVisible(false);
   };
 
-  // ✅ التحقق من الحجوزات النشطة: يتم الحظر إذا كان هناك موعد "قيد الانتظار" أو "مقبول" في تاريخ اليوم أو مستقبلاً
-  const checkAppointmentsBeforeSave = () => {
+  // ✅ التحقق المطور: جلب البيانات من السيرفر أولاً ثم الفحص
+  const checkAppointmentsBeforeSave = async () => {
+    // 1. تحديث قائمة المواعيد من السيرفر فوراً لضمان الدقة
+    if (doctorCtx?.getAppointments) {
+        await doctorCtx.getAppointments();
+    }
+
     const bookings = doctorCtx?.appointments || [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -112,8 +117,8 @@ const ManageSlotsScreen = () => {
         const appointmentDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
         appointmentDate.setHours(0, 0, 0, 0);
 
-        // الشرط: الحالة نشطة والتاريخ لم يمر
-        const isActiveStatus = app.status === 'pending' || app.status === 'accepted';
+        // الشرط: لم يلغى ولم يكتمل (نشط) والتاريخ اليوم أو مستقبلاً
+        const isActiveStatus = app.status !== 'cancelled' && app.isCompleted === false;
         const isNotExpired = appointmentDate >= today;
 
         return isActiveStatus && isNotExpired;
@@ -182,6 +187,8 @@ const ManageSlotsScreen = () => {
             offDays 
         } as any);
         navigation.navigate('MySchedule');
+      } else {
+          Alert.alert('خطأ', 'فشل التحديث، تأكد من عدم وجود حجوزات قائمة من السيرفر.');
       }
     }
   };
@@ -263,7 +270,7 @@ const ManageSlotsScreen = () => {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* مودال التحذير المطور - يمنع الطبيب من التحديث إذا كانت هناك حجوزات */}
+      {/* مودال التحذير المطور */}
       <Modal visible={warningModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.warningContent, { backgroundColor: isDarkMode ? '#1e293b' : '#fff' }]}>
@@ -277,7 +284,7 @@ const ManageSlotsScreen = () => {
             </Text>
             <Text style={styles.warningDesc}>
               {hasAppointments 
-                ? "يوجد حجوزات نشطة حالياً (انتظار أو قبول) لم تنتهِ بعد. حفاظاً على حقوق المرضى، يجب إنهاء جميع الحجوزات الحالية (بالإتمام أو الرفض) قبل تغيير إعدادات الجدول." 
+                ? "يوجد حجوزات نشطة حالياً لم تنتهِ بعد. حفاظاً على حقوق المرضى، يجب إنهاء جميع الحجوزات الحالية بالإتمام أو الإلغاء قبل تغيير الإعدادات." 
                 : "هل أنت متأكد من رغبتك في تحديث الجدول؟ سيؤدي ذلك لإعادة توزيع المواعيد المتاحة بناءً على الإعدادات الجديدة."}
             </Text>
             
