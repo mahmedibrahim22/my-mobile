@@ -48,6 +48,9 @@ interface AppContextType {
     toggleTheme: () => void;
     logout: () => Promise<void>;
     isLoading: boolean;
+    // ✅ الحالات الجديدة للتحكم في إشعارات الحجز
+    bookingSuccess: boolean;
+    setBookingSuccess: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 // --- إنشاء السياق (Context) ---
@@ -66,6 +69,9 @@ export const AppContextProvider = ({ children }: { children: ReactNode }) => {
     const [userData, setUserData] = useState<UserData | null>(null);
     const [isDarkMode, setIsDarkMode] = useState<boolean>(systemColorScheme === 'dark');
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    
+    // ✅ حالة نجاح عملية الحجز
+    const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
 
     const isFetchingProfile = useRef(false);
 
@@ -261,11 +267,14 @@ export const AppContextProvider = ({ children }: { children: ReactNode }) => {
         setIsDarkMode,
         toggleTheme,
         logout,
-        isLoading
+        isLoading,
+        // ✅ تمرير الحالات الجديدة للـ Context
+        bookingSuccess,
+        setBookingSuccess
     }), [
         doctors, getDoctorsData, userData, loadUserProfileData, currency, 
         backendUrl, token, saveToken, userRole, saveRole, calculateAge, 
-        isDarkMode, toggleTheme, logout, isLoading
+        isDarkMode, toggleTheme, logout, isLoading, bookingSuccess, setBookingSuccess
     ]);
 
     return (

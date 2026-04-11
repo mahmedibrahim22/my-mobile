@@ -10,7 +10,9 @@ import {
   Alert,
   SafeAreaView,
   ActivityIndicator,
-  BackHandler
+  BackHandler,
+  Modal,
+  Dimensions
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -19,6 +21,8 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import * as DocumentPicker from 'expo-document-picker';
 import { AppContext } from '../../context/AppContext';
+
+const { width } = Dimensions.get('window');
 
 const dayNamesArabic = ['الأحد', 'الأثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
@@ -45,7 +49,7 @@ const AppointmentScreen = () => {
 
   const context = useContext(AppContext) as any;
   const isDarkMode = context?.isDarkMode ?? true;
-  const { currency, backendUrl, token, userData } = context || {};
+  const { currency, backendUrl, token, userData, setBookingSuccess } = context || {};
   const { doctors } = useSelector((state: any) => state.doctors);
 
   const [docInfo, setDocInfo] = useState<any | null>(null);
@@ -61,6 +65,15 @@ const AppointmentScreen = () => {
   const [illnessDescription, setIllnessDescription] = useState("");
   const [illnessImage, setIllnessImage] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+
+  // حالة التنبيه المخصص
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertMsg, setAlertMsg] = useState("");
+
+  const showAlert = (msg: string) => {
+    setAlertMsg(msg);
+    setAlertVisible(true);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -86,22 +99,17 @@ const AppointmentScreen = () => {
     }
   }, [doctors, docId]);
 
-  // دالة توليد المواقيت بناءً على إعدادات الطبيب
   const generateTimeSlots = (startTime: string, endTime: string, duration: number, breakStart: string, breakDuration: number) => {
     const slots = [];
     const parseTime = (timeStr: string) => {
       if (!timeStr) return null;
-      // نستخدم Regex للتأكد من فصل الوقت عن AM/PM بشكل صحيح
       const match = timeStr.match(/(\d+:\d+)\s*(AM|PM)/i);
       if (!match) return null;
-      
       const time = match[1];
       const modifier = match[2].toUpperCase();
       let [hours, minutes] = time.split(':').map(Number);
-      
       if (modifier === 'PM' && hours !== 12) hours += 12;
       if (modifier === 'AM' && hours === 12) hours = 0;
-      
       const d = new Date();
       d.setHours(hours, minutes || 0, 0, 0);
       return d;
@@ -110,12 +118,9 @@ const AppointmentScreen = () => {
     let current = parseTime(startTime);
     const end = parseTime(endTime);
     const bStart = breakStart ? parseTime(breakStart) : null;
-    // حساب نهاية وقت الراحة
     const bEnd = (bStart && breakDuration) ? new Date(bStart.getTime() + breakDuration * 60 * 1000) : null;
 
     if (!current || !end || duration <= 0) return [];
-
-    // إذا كان وقت النهاية قبل البداية (دوام ليلي عبر منتصف الليل)
     if (end <= current) end.setDate(end.getDate() + 1);
 
     while (current < end) {
@@ -130,20 +135,16 @@ const AppointmentScreen = () => {
 
   const getAvailableSlots = useCallback(() => {
     if (!docInfo) return;
-
     if (docInfo.isAvailableNow === false) {
        setDocSlots([]);
        return;
     }
-
     let now = new Date();
     let today = new Date();
     today.setHours(0, 0, 0, 0); 
-
     let activeDaysCount = 0;
     let allSlots = [];
     let dayOffset = 0;
-
     const duration = docInfo.duration || 30;
     const offDays = docInfo.offDays || [];
     const startTime = docInfo.startTime || "09:00 AM";
@@ -155,29 +156,21 @@ const AppointmentScreen = () => {
       let currentDate = new Date(today);
       currentDate.setDate(today.getDate() + dayOffset);
       const dayName = dayNamesArabic[currentDate.getDay()];
-      
       const isOffDay = offDays.includes(dayName);
-
       if (!isOffDay) {
         const slotDateKey = `${currentDate.getDate()}_${currentDate.getMonth() + 1}_${currentDate.getFullYear()}`;
         const bookedTimes = ((docInfo.slots_booked && docInfo.slots_booked[slotDateKey]) || []).map((t: string) => t.trim().toUpperCase().replace(/^0/, ''));
-        
         let daySlots = generateTimeSlots(startTime, endTime, duration, breakStart, breakDuration);
-
         const filteredTimes = daySlots.filter((time: string) => {
           const cleanTime = time.trim().toUpperCase().replace(/^0/, '');
           const match = cleanTime.match(/(\d+:\d+)\s*(AM|PM)/i);
           if(!match) return false;
-
           let [hours, minutes] = match[1].split(':').map(Number);
           const modifier = match[2];
           if (modifier === 'PM' && hours !== 12) hours += 12;
           if (modifier === 'AM' && hours === 12) hours = 0;
-
           const slotDateTime = new Date(currentDate);
           slotDateTime.setHours(hours, minutes, 0, 0);
-
-          // شرطين: لا يكون محجوزاً + يكون في وقت مستقبلي
           return !bookedTimes.includes(cleanTime) && slotDateTime > now;
         }).map((time: string) => ({ time: time.trim(), datetime: new Date(currentDate) }));
 
@@ -220,13 +213,17 @@ const AppointmentScreen = () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: 'image/*' });
       if (!result.canceled) setIllnessImage(result.assets[0]);
-    } catch { Alert.alert("خطأ", "فشل في اختيار الملف"); }
+    } catch { showAlert("فشل في اختيار الملف"); }
   };
 
   const bookAppointment = async () => {
-    if (!token) return Alert.alert("تنبيه", "سجل دخولك أولاً");
-    if (slotIndex === null || !slotTime) return Alert.alert("تنبيه", "يرجى اختيار الموعد أولاً");
-    if (!patientName || !patientPhone) return Alert.alert("تنبيه", "يرجى إكمال بيانات المريض");
+    if (!token) return showAlert("سجل دخولك أولاً لإتمام الحجز");
+    if (slotIndex === null) return showAlert("يرجى اختيار يوم الحجز أولاً");
+    if (!slotTime) return showAlert("يرجى اختيار ميعاد الحجز");
+    if (isUserProfile === null) return showAlert("يرجى تحديد هل الحجز لك أم لشخص آخر");
+    if (!patientName.trim()) return showAlert("يرجى كتابة اسم المريض");
+    if (!patientPhone.trim()) return showAlert("يرجى كتابة رقم الهاتف");
+    if (!patientAge.trim()) return showAlert("يرجى كتابة سن المريض");
     
     setLoading(true);
     const date = docSlots[slotIndex].fullDate;
@@ -256,13 +253,20 @@ const AppointmentScreen = () => {
       });
 
       if (data.success) {
-        Alert.alert("تم الحجز", "تم تسجيل موعدك بنجاح ✅");
-        navigation.navigate('MyAppointments');
+        // ✅ تفعيل إشعار النجاح في الهوم
+        if(setBookingSuccess) {
+           setBookingSuccess(true);
+        }
+        // ✅ تعديل اسم الشاشة لـ 'Home' ليتطابق مع App.tsx ويحل مشكلة الـ ERROR
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
       } else {
-        Alert.alert("فشل الحجز", data.message);
+        showAlert(data.message);
       }
     } catch (err: any) {
-      Alert.alert("خطأ", "حدث خطأ في الاتصال بالخادم");
+      showAlert("حدث خطأ في الاتصال بالخادم، حاول مرة أخرى");
     } finally {
       setLoading(false);
     }
@@ -277,6 +281,20 @@ const AppointmentScreen = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]}>
+      
+      {/* Custom Alert Modal */}
+      <Modal visible={alertVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <MotiView from={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={[styles.alertBox, { backgroundColor: cardColor }]}>
+            <Ionicons name="warning" size={50} color="#f87171" style={{ marginBottom: 15 }} />
+            <Text style={[styles.alertText, { color: textColor }]}>{alertMsg}</Text>
+            <TouchableOpacity onPress={() => setAlertVisible(false)} style={styles.alertBtn}>
+              <Text style={styles.alertBtnText}>حسناً</Text>
+            </TouchableOpacity>
+          </MotiView>
+        </View>
+      </Modal>
+
       <View style={[styles.header, { borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#e2e8f0' }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
               <Ionicons name="arrow-forward" size={24} color={textColor} />
@@ -392,13 +410,13 @@ const AppointmentScreen = () => {
                   
                   <TouchableOpacity onPress={pickImage} style={styles.uploadBtn}>
                     <Ionicons name="image-outline" size={22} color="#2dd4bf" />
-                    <Text style={styles.uploadText}>{illnessImage ? "تم اختيار الصورة ✅" : "إرفاق صورة أشعة أو تحاليل"}</Text>
+                    <Text style={styles.uploadText}>{illnessImage ? "تم اختيار الصورة " : "إرفاق صورة أشعة أو تحاليل"}</Text>
                   </TouchableOpacity>
                 </MotiView>
               )}
             </View>
 
-            <TouchableOpacity onPress={bookAppointment} disabled={loading || !slotTime} style={[styles.submitBtn, { opacity: !slotTime ? 0.6 : 1 }]}>
+            <TouchableOpacity onPress={bookAppointment} disabled={loading} style={[styles.submitBtn]}>
               {loading ? <ActivityIndicator color="#0F172A" /> : (
                 <>
                   <Text style={styles.submitBtnText}>إتمام عملية الحجز</Text>
@@ -454,7 +472,13 @@ const styles = StyleSheet.create({
   uploadBtn: { borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#2dd4bf', borderRadius: 16, padding: 20, flexDirection: 'row-reverse', justifyContent: 'center', alignItems: 'center', gap: 10 },
   uploadText: { color: '#2dd4bf', fontSize: 14, fontWeight: '700' },
   submitBtn: { backgroundColor: '#2dd4bf', padding: 22, borderRadius: 22, flexDirection: 'row-reverse', justifyContent: 'center', alignItems: 'center', gap: 12, marginBottom: 50, elevation: 5 },
-  submitBtnText: { color: '#0F172A', fontSize: 18, fontWeight: '800' }
+  submitBtnText: { color: '#0F172A', fontSize: 18, fontWeight: '800' },
+  // Modal Styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
+  alertBox: { width: width * 0.85, borderRadius: 30, padding: 30, alignItems: 'center', elevation: 10 },
+  alertText: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 25, lineHeight: 26 },
+  alertBtn: { backgroundColor: '#2dd4bf', paddingHorizontal: 40, paddingVertical: 12, borderRadius: 15 },
+  alertBtnText: { color: '#0F172A', fontSize: 16, fontWeight: '800' }
 });
 
 export default AppointmentScreen;

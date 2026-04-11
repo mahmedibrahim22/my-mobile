@@ -3,10 +3,15 @@ import {
   View, 
   StyleSheet, 
   StatusBar,
-  Platform
+  Platform,
+  Text,
+  TouchableOpacity
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context"; 
 import { useDispatch } from "react-redux";
+import { useNavigation } from "@react-navigation/native";
+import { MotiView, AnimatePresence } from "moti";
+import { Ionicons } from "@expo/vector-icons";
 
 // ✅ استخدام المكونات من gesture-handler لضمان استجابة اللمس السريعة
 import { ScrollView, RefreshControl } from "react-native-gesture-handler";
@@ -23,17 +28,18 @@ import Footer from "../../components/Layout/Footer";
 
 /**
  * 🏠 HomeScreen: الشاشة الرئيسية للنظام
- * تم حل مشكلة تكرار المسار (Double /api)
+ * تم إضافة إشعار نجاح الحجز (Banner) لمدة 5 ثوانٍ
  */
 const HomeScreen: React.FC = () => {
   const dispatch = useDispatch();
+  const navigation = useNavigation<any>();
   
   const scrollRef = useRef<ScrollView>(null);
   const lastActionTime = useRef<number>(0);
 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  const context = useContext(AppContext);
+  const context = useContext(AppContext) as any;
   const adminCtx = useContext(AdminContext); 
   
   const isDarkMode = context?.isDarkMode ?? false;
@@ -41,14 +47,28 @@ const HomeScreen: React.FC = () => {
   const userRole = context?.userRole; 
   const loadUserProfileData = context?.loadUserProfileData;
 
+  // استخراج حالة الحجز من الـ Context
+  const bookingSuccess = context?.bookingSuccess;
+  const setBookingSuccess = context?.setBookingSuccess;
+
+  /**
+   * ⏳ إخفاء الإشعار تلقائياً بعد 5 ثوانٍ
+   */
+  useEffect(() => {
+    if (bookingSuccess) {
+      const timer = setTimeout(() => {
+        if (setBookingSuccess) setBookingSuccess(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [bookingSuccess, setBookingSuccess]);
+
   /**
    * 🔄 دالة جلب بيانات الأطباء
-   * ✅ تم الإصلاح: حذف /api/ لأن الـ axiosInstance يضيفها تلقائياً
    */
   const getDoctorsData = useCallback(async () => {
     try {
       dispatch(setLoading(true));
-      // تم تغيير المسار من /api/doctor/list إلى doctor/list
       const { data } = await axiosInstance.get(`doctor/list`);
       
       if (data && data.success) {
@@ -72,7 +92,6 @@ const HomeScreen: React.FC = () => {
             adminCtx.setAToken(""); 
         }
         if (loadUserProfileData) {
-            console.log("🚀 [Home] Fetching User Profile...");
             loadUserProfileData();
         }
     }
@@ -110,6 +129,31 @@ const HomeScreen: React.FC = () => {
         backgroundColor={statusBarColor} 
         translucent={Platform.OS === 'android'}
       />
+
+      {/* ✅ إشعار نجاح الحجز العلوي */}
+      <AnimatePresence>
+        {bookingSuccess && (
+          <MotiView
+            from={{ translateY: -100, opacity: 0 }}
+            animate={{ translateY: 0, opacity: 1 }}
+            exit={{ translateY: -100, opacity: 0 }}
+            style={[styles.successBanner, { backgroundColor: isDarkMode ? '#2dd4bf' : '#0d9488' }]}
+          >
+            <View style={styles.bannerRow}>
+              <Ionicons name="checkmark-circle" size={22} color="#0F172A" />
+              <Text style={styles.bannerText}>تم حجز ميعادك بنجاح!</Text>
+            </View>
+            <TouchableOpacity 
+              onPress={() => {
+                if (setBookingSuccess) setBookingSuccess(false);
+                navigation.navigate('MyAppointments');
+              }}
+            >
+              <Text style={styles.clickHere}>لعرض مواعيدك اضغط هنا</Text>
+            </TouchableOpacity>
+          </MotiView>
+        )}
+      </AnimatePresence>
 
       <ScrollView 
         ref={scrollRef} 
@@ -154,7 +198,29 @@ const styles = StyleSheet.create({
   darkBg: { backgroundColor: '#060b18' },
   scrollContent: { flexGrow: 1, paddingBottom: 20 },
   componentsContainer: { marginTop: 10, width: '100%', gap: 25 },
-  sectionFrame: { width: '100%' }
+  sectionFrame: { width: '100%' },
+  
+  // استايلات الإشعار
+  successBanner: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 10,
+    left: 15,
+    right: 15,
+    zIndex: 999,
+    padding: 15,
+    borderRadius: 20,
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  bannerRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
+  bannerText: { color: '#0F172A', fontWeight: '800', fontSize: 14 },
+  clickHere: { color: '#0F172A', fontWeight: 'bold', fontSize: 12, textDecorationLine: 'underline' }
 });
 
 export default HomeScreen;
