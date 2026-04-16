@@ -70,13 +70,13 @@ const AppNavigator = () => {
         />
       ) : (
         <>
-          {/* ✅ المسار الأساسي بعد تسجيل الدخول */}
+          {/* ✅ المسار الأساسي بعد تسجيل الدخول (يتعامل مع الـ Role داخلياً) */}
           <Stack.Screen 
             name="MainDrawer" 
             component={DrawerNavigator} 
           />
 
-          {/* 🚀 إضافة الـ Stacks كمسارات مستقلة للسماح بالـ Navigation.replace */}
+          {/* 🚀 إضافة الـ Stacks كمسارات مستقلة للسماح بالـ Navigation.replace والوصول المباشر */}
           <Stack.Screen 
             name="DoctorStack" 
             component={DoctorStack} 
@@ -96,7 +96,11 @@ const AppNavigator = () => {
       )}
 
       {/* ⚠️ شاشة الخطأ العامة */}
-      <Stack.Screen name="NotFound" component={NotFoundScreen} />
+      <Stack.Screen 
+        name="NotFound" 
+        component={NotFoundScreen} 
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 };

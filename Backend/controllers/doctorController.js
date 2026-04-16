@@ -38,11 +38,12 @@ const doctorList = async (req, res) => {
             const isNotOffDay = !doc.offDays.includes(dayNameNow);
 
             // 4. تحديد التوفر الحقيقي:
-            // يجب أن يكون (متاح عاماً) و (ليس يوم إجازة) و (لديه فترات عمل مسجلة) و (لم يتخطَ حد الحجز)
+            // أضفنا شرط isSuspended: لو الطبيب موقوف بسبب الديون لا يظهر متاحاً
             const isAvailableNow = (doc.available !== undefined ? doc.available : true) && 
                                    isNotOffDay && 
                                    hasSlotsDefined && 
-                                   bookedSlotsToday < 20;
+                                   bookedSlotsToday < 20 &&
+                                   !doc.isSuspended;
 
             return {
                 ...docObj,
@@ -89,11 +90,12 @@ const loginDoctor = async (req, res) => {
     }
 }
 
-// --- لوحة التحكم (إحصائيات الطبيب) ---
+// --- لوحة التحكم (إحصائيات الطبيب مع نظام المديونية) ---
 const doctorDashboard = async (req, res) => {
     try {
         const { docId } = req.body;
         const appointments = await appointmentModel.find({ docId });
+        const doctor = await doctorModel.findById(docId);
 
         let earnings = 0;
         appointments.forEach((item) => { 
@@ -102,11 +104,20 @@ const doctorDashboard = async (req, res) => {
 
         const patientIds = [...new Set(appointments.map(item => item.userId.toString()))];
 
+        // منطق الـ Blur: جلب أول حجز نشط فقط ليتم عرضه بدون تشويش
+        const activeAppointments = appointments.filter(a => !a.cancelled && !a.isCompleted);
+        const nextAppointmentId = activeAppointments.length > 0 ? activeAppointments[0]._id : null;
+
         const dashData = {
             earnings,
             appointmentsCount: appointments.length,
             patientsCount: patientIds.length,
-            latestAppointments: appointments.reverse().slice(0, 5)
+            latestAppointments: appointments.reverse().slice(0, 5),
+            // بيانات المديونية للفرونت إند
+            totalFeesToAwn: doctor.totalFeesToAwn,
+            isSuspended: doctor.isSuspended,
+            paymentStatus: doctor.paymentStatus,
+            nextAppointmentId // إرسال معرف الحجز الذي لا يجب عمل Blur له
         };
 
         res.json({ success: true, dashData });
@@ -121,20 +132,43 @@ const appointmentsDoctor = async (req, res) => {
     try {
         const { docId } = req.body;
         const appointments = await appointmentModel.find({ docId });
-        res.json({ success: true, appointments });
+        
+        // تحديد أول موعد متاح ليكون هو المسموح به (Non-Blur)
+        const activeSlots = appointments.filter(a => !a.isCompleted && !a.cancelled);
+        const nextId = activeSlots.length > 0 ? activeSlots[0]._id : null;
+
+        res.json({ success: true, appointments, nextId });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
 }
 
+// ✅ زر "تم الكشف بنجاح" الإلزامي + حساب الـ 10ج بعد الحجز السابع
 const appointmentComplete = async (req, res) => {
     try {
         const { docId, appointmentId } = req.body;
         const appointmentData = await appointmentModel.findById(appointmentId);
 
         if (appointmentData && appointmentData.docId.toString() === docId) {
+            // 1. تحديث الحجز كمكتمل
             await appointmentModel.findByIdAndUpdate(appointmentId, { isCompleted: true });
-            return res.json({ success: true, message: "تم إتمام الموعد بنجاح ✅" });
+
+            // 2. تحديث عداد الدكتور والمديونية
+            const doctor = await doctorModel.findById(docId);
+            let newDailyCount = (doctor.dailyAppointmentsCount || 0) + 1;
+            let newFees = doctor.totalFeesToAwn || 0;
+
+            // إذا تخطى 7 حجوزات، نبدأ بحساب 10ج على كل كشف جديد
+            if (newDailyCount > 7) {
+                newFees += 10;
+            }
+
+            await doctorModel.findByIdAndUpdate(docId, {
+                dailyAppointmentsCount: newDailyCount,
+                totalFeesToAwn: newFees
+            });
+
+            return res.json({ success: true, message: "تم إتمام الموعد وتحديث الحسابات بنجاح ✅" });
         }
         res.json({ success: false, message: "فشل تحديث الموعد" });
     } catch (error) {
@@ -144,14 +178,25 @@ const appointmentComplete = async (req, res) => {
 
 const appointmentCancel = async (req, res) => {
     try {
-        const { docId, appointmentId } = req.body;
+        const { docId, appointmentId, action } = req.body; // action: 'accepted' or 'rejected'
         const appointmentData = await appointmentModel.findById(appointmentId);
 
         if (appointmentData && appointmentData.docId.toString() === docId) {
-            await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true });
-            return res.json({ success: true, message: "تم إلغاء الموعد" });
+            if (action === 'accepted') {
+                await appointmentModel.findByIdAndUpdate(appointmentId, { 
+                    cancelled: true, 
+                    cancellationStatus: 'accepted' 
+                });
+                return res.json({ success: true, message: "تم قبول الإلغاء والموعد متاح الآن" });
+            } else {
+                await appointmentModel.findByIdAndUpdate(appointmentId, { 
+                    cancellationStatus: 'rejected',
+                    cancellationRequest: false 
+                });
+                return res.json({ success: true, message: "تم رفض طلب الإلغاء" });
+            }
         }
-        res.json({ success: false, message: "لا يمكن إلغاء الموعد" });
+        res.json({ success: false, message: "لا يمكن تنفيذ الإجراء" });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
@@ -174,6 +219,27 @@ const changeAvailability = async (req, res) => {
         const docData = await doctorModel.findById(docId);
         await doctorModel.findByIdAndUpdate(docId, { available: !docData.available });
         res.json({ success: true, message: "تم تحديث الحالة بنجاح" });
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+}
+
+// ✅ رفع إثبات الدفع (Screenshot) لعون
+const uploadPaymentScreenshot = async (req, res) => {
+    try {
+        const { docId } = req.body;
+        const imageFile = req.file;
+
+        if (!imageFile) return res.json({ success: false, message: "يرجى إرفاق صورة الإيصال" });
+
+        const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: "image" });
+        
+        await doctorModel.findByIdAndUpdate(docId, {
+            paymentScreenshot: imageUpload.secure_url,
+            paymentStatus: 'pending'
+        });
+
+        res.json({ success: true, message: "تم رفع الإيصال، يرجى الانتظار حتى التحقق ✅" });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
@@ -234,19 +300,17 @@ const updateDoctorProfile = async (req, res) => {
     }
 }
 
-// --- ✅ تحديث جدول المواعيد والإعدادات (مدة الكشف والراحة والإجازات مع حماية) ---
+// --- ✅ تحديث جدول المواعيد والإعدادات ---
 const updateDoctorSlots = async (req, res) => {
     try {
         const { docId, slots, duration, breakTime, offDays, startTime, endTime, breakStart } = req.body;
 
-        // 1. فحص وجود أي حجوزات نشطة قبل التحديث (لم تكتمل ولم تُلغى)
         const activeAppointments = await appointmentModel.find({ 
             docId: docId, 
             cancelled: false, 
             isCompleted: false 
         });
 
-        // 2. إذا وجدت حجوزات نشطة نرفض الطلب لحماية بيانات المرضى
         if (activeAppointments.length > 0) {
             return res.json({ 
                 success: false, 
@@ -254,7 +318,6 @@ const updateDoctorSlots = async (req, res) => {
             });
         }
 
-        // 3. التحديث في حال عدم وجود حجوزات
         await doctorModel.findByIdAndUpdate(docId, { 
             slots_available: slots || {},
             duration: duration !== undefined ? Number(duration) : 30,
@@ -282,5 +345,6 @@ export {
     doctorList, 
     doctorDashboard, 
     updateDoctorProfile,
-    updateDoctorSlots
+    updateDoctorSlots,
+    uploadPaymentScreenshot
 }

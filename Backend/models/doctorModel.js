@@ -25,16 +25,15 @@ const doctorSchema = new mongoose.Schema({
 
     fees: { type: Number, required: true },
 
-    // ✅ إعدادات وقت الكشف والراحة (تستخدم لتوليد المواعيد تلقائياً في Frontend)
-    startTime: { type: String, default: "09:00 AM" }, // وقت بدء العيادة
-    endTime: { type: String, default: "09:00 PM" },   // وقت إغلاق العيادة
-    duration: { type: Number, default: 30 },          // مدة الكشف بالدقائق
-    breakStart: { type: String, default: "03:00 PM" }, // وقت بدء الاستراحة
-    breakTime: { type: Number, default: 60 },         // مدة الراحة بالدقائق
-    offDays: { type: [String], default: ["الجمعة"] }, // أيام الإجازة الأسبوعية
+    // ✅ إعدادات وقت الكشف والراحة
+    startTime: { type: String, default: "09:00 AM" }, 
+    endTime: { type: String, default: "09:00 PM" },   
+    duration: { type: Number, default: 30 },          
+    breakStart: { type: String, default: "03:00 PM" }, 
+    breakTime: { type: Number, default: 60 },         
+    offDays: { type: [String], default: ["الجمعة"] }, 
 
     // ✅ المواعيد المتاحة (الجدول الأسبوعي الثابت)
-    // تم ضبط القيم الافتراضية لضمان وجود الهيكل حتى لو لم يقم الطبيب بتعديله بعد
     slots_available: { 
         type: Object, 
         default: {
@@ -48,27 +47,34 @@ const doctorSchema = new mongoose.Schema({
         } 
     },
 
-    // ✅ المواعيد المحجوزة فعلياً (تاريخ محدد: مصفوفة ساعات)
-    // مثال: "11_4_2026": ["09:00 AM", "10:30 AM"]
+    // ✅ المواعيد المحجوزة فعلياً
     slots_booked: { 
         type: Object, 
         default: {} 
     },
 
-    // العنوان (يحتوي على line1 و line2)
+    // 💰 نظام رسوم تشغيل وصيانة "عون" (10ج على كل كشف بعد أول 7 حجوزات)
+    dailyAppointmentsCount: { type: Number, default: 0 }, // عداد الكشوفات اليومي
+    totalFeesToAwn: { type: Number, default: 0 },       // إجمالي المبلغ المستحق لعون (عدد الكشوفات بعد الـ7 * 10)
+    isSuspended: { type: Boolean, default: false },     // هل تم إيقاف الطبيب لعدم السداد؟
+    paymentStatus: { 
+        type: String, 
+        enum: ["none", "pending", "verified"], 
+        default: "none" 
+    }, // حالة السداد (none: لم يرفع، pending: رفع الصورة وينتظر الأدمن، verified: تم التأكد)
+    paymentScreenshot: { type: String, default: "" },   // رابط صورة إيصال الدفع (فودافون كاش / انستا باي)
+
+    // العنوان
     address: { type: Object, required: true },
 
     // تاريخ التسجيل
     date: { type: Date, default: Date.now },
 
 }, { 
-    // minimize: false تضمن حفظ الحقول الفارغة {} في MongoDB
     minimize: false, 
-    // timestamps توفر createdAt و updatedAt تلقائياً لتتبع آخر تحديث للجدول
     timestamps: true 
 });
 
-// تصدير الموديل مع التحقق من وجوده مسبقاً لمنع خطأ إعادة التعريف في Next.js/Node
 const doctorModel = mongoose.models.doctor || mongoose.model("doctor", doctorSchema);
 
 export default doctorModel;

@@ -7,18 +7,19 @@ import DoctorDashboardScreen from '../screens/Admin-and-Doctors/Doctor/DoctorDas
 import AppointmentsScreen from '../screens/Admin-and-Doctors/Doctor/AppointmentsScreen';
 import DoctorProfileScreen from '../screens/Admin-and-Doctors/Doctor/DoctorProfileScreen';
 import ManageSlotsScreen from '../screens/Admin-and-Doctors/Doctor/ManageSlotsScreen';
-import MyScheduleScreen from '../screens/Admin-and-Doctors/Doctor/MyScheduleScreen'; // استيراد شاشة الجدول الجديدة
+import MyScheduleScreen from '../screens/Admin-and-Doctors/Doctor/MyScheduleScreen';
+import SettleFeesScreen from '../screens/Admin-and-Doctors/Doctor/SettleFeesScreen'; // استيراد شاشة السداد الجديدة
 
 /**
  * ✅ تعريف أنواع التنقل الخاصة بالطبيب
- * تم إضافة MySchedule لتتوافق مع العرض المباشر للجدول
  */
 export type DoctorStackParamList = {
-  DoctorDashRoot: undefined; 
+  DoctorHome: undefined; // تم تغيير الاسم من DoctorDashRoot ليتوافق مع التنقل
   DoctorAppointments: undefined;
   DoctorProfile: undefined;
   ManageSlots: undefined; 
-  MySchedule: undefined; // إضافة المسار الجديد للجدول هنا
+  MySchedule: undefined;
+  SettleFees: { fees: number }; 
 };
 
 const Stack = createStackNavigator<DoctorStackParamList>();
@@ -26,7 +27,7 @@ const Stack = createStackNavigator<DoctorStackParamList>();
 const DoctorStack = () => {
   return (
     <Stack.Navigator
-      initialRouteName="DoctorDashRoot"
+      initialRouteName="DoctorHome"
       screenOptions={{
         // 🎨 تصميم الهيدر الداكن ليتماشى مع هوية عون (Modern Dark Mode)
         headerStyle: {
@@ -52,7 +53,7 @@ const DoctorStack = () => {
     >
       {/* 1️⃣ لوحة تحكم الطبيب - الشاشة الرئيسية */}
       <Stack.Screen 
-        name="DoctorDashRoot" 
+        name="DoctorHome" 
         component={DoctorDashboardScreen} 
         options={{ 
           headerShown: false,
@@ -60,7 +61,20 @@ const DoctorStack = () => {
         }} 
       />
 
-      {/* 2️⃣ شاشة عرض جدول المواعيد (الجدول الاحترافي) */}
+      {/* 2️⃣ شاشة تسوية الرسوم (سدد الآن) */}
+      <Stack.Screen 
+        name="SettleFees" 
+        component={SettleFeesScreen} 
+        options={{ 
+          title: 'سداد رسوم عون',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: '#0f172a',
+          }
+        }} 
+      />
+
+      {/* 3️⃣ شاشة عرض جدول المواعيد (الجدول الاحترافي) */}
       <Stack.Screen 
         name="MySchedule" 
         component={MyScheduleScreen} 
@@ -73,7 +87,7 @@ const DoctorStack = () => {
         }} 
       />
 
-      {/* 3️⃣ شاشة ترتيب وتعديل المواعيد */}
+      {/* 4️⃣ شاشة ترتيب وتعديل المواعيد */}
       <Stack.Screen 
         name="ManageSlots" 
         component={ManageSlotsScreen} 
@@ -86,7 +100,7 @@ const DoctorStack = () => {
         }} 
       />
 
-      {/* 4️⃣ مواعيد الكشوفات */}
+      {/* 5️⃣ مواعيد الكشوفات */}
       <Stack.Screen 
         name="DoctorAppointments" 
         component={AppointmentsScreen} 
@@ -99,7 +113,7 @@ const DoctorStack = () => {
         }} 
       />
 
-      {/* 5️⃣ الملف الشخصي للطبيب */}
+      {/* 6️⃣ الملف الشخصي للطبيب */}
       <Stack.Screen 
         name="DoctorProfile" 
         component={DoctorProfileScreen} 

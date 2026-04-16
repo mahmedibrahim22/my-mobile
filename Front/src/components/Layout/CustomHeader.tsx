@@ -6,6 +6,7 @@ import {
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons'; 
 
 // --- استيراد الـ Slices والـ Context لضمان الربط الشامل ---
 import { logout } from '../../store/slices/UserSlice'; 
@@ -17,9 +18,11 @@ import { AppDispatch, RootState } from '../../store';
 interface CustomHeaderProps {
   darkMode: boolean;
   setDarkMode: (v: boolean) => void;
+  onHomePress?: () => void; // إضافة البروب الخاص بالهوم
+  showHome?: boolean;      // التحكم في ظهور زر الهوم
 }
 
-const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode }) => {
+const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHomePress, showHome }) => {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch<AppDispatch>();
   
@@ -87,13 +90,28 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode }) =>
       
       <View style={[styles.headerContainer, darkMode ? styles.darkBorder : styles.lightBorder]}>
         
-        {/* القسم الأيسر: الأزرار (Theme + Profile) */}
+        {/* القسم الأيسر: الأزرار (Home + Theme + Profile) */}
         <View style={styles.leftSection}>
+          {/* زر الهوم (الرجوع للداشبورد الأساسية) */}
+          {showHome && (
+            <TouchableOpacity 
+              onPress={onHomePress}
+              style={[styles.themeBtn, darkMode ? styles.darkThemeBtn : styles.lightThemeBtn]}
+            >
+              <Ionicons name="home-outline" size={20} color={darkMode ? "#00dfc4" : "#0f172a"} />
+            </TouchableOpacity>
+          )}
+
+          {/* زر الثيم */}
           <TouchableOpacity 
             onPress={() => setDarkMode(!darkMode)}
             style={[styles.themeBtn, darkMode ? styles.darkThemeBtn : styles.lightThemeBtn]}
           >
-            <Text style={{ fontSize: 16 }}>{darkMode ? "☀️" : "🌙"}</Text>
+            <Ionicons 
+                name={darkMode ? "sunny-outline" : "moon-outline"} 
+                size={20} 
+                color={darkMode ? "#f8fafc" : "#475569"} 
+            />
           </TouchableOpacity>
 
           {token ? (
@@ -104,13 +122,11 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode }) =>
               >
                 <View style={styles.userInfo}>
                   <Text style={[styles.userName, darkMode ? styles.whiteText : styles.darkText]}>
-                    {/* ✅ عرض الاسم الأول للطبيب أو المستخدم */}
                     {displayName?.split(' ')[0] || "الحساب"}
                   </Text>
                   <Text style={styles.roleBadge}>{getRoleLabel()}</Text>
                 </View>
                 <View style={styles.imageContainer}>
-                  {/* ✅ عرض صورة الطبيب أو المستخدم أو اللوجو الافتراضي */}
                   <Image 
                     source={displayImage ? { uri: displayImage } : require('../../../assets/images/logo.png')} 
                     style={styles.profileImg} 
@@ -158,8 +174,8 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode }) =>
             style={styles.menuBtn}
           >
             <View style={styles.menuLines}>
-              <View style={[styles.line, { width: 22 }]} />
-              <View style={[styles.line, { width: 16, backgroundColor: '#2dd4bf' }]} />
+              <View style={[styles.line, { width: 22, backgroundColor: darkMode ? '#00dfc4' : '#2dd4bf' }]} />
+              <View style={[styles.line, { width: 16, backgroundColor: darkMode ? '#ffffff' : '#0D9488' }]} />
             </View>
           </TouchableOpacity>
         </View>
@@ -169,6 +185,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode }) =>
       <Modal visible={logoutModalVisible} transparent animationType="slide">
         <View style={styles.confirmOverlay}>
           <View style={[styles.confirmBox, darkMode ? styles.darkDropdown : styles.lightDropdown]}>
+            <Ionicons name="alert-circle-outline" size={50} color="#ef4444" style={{ marginBottom: 15 }} />
             <Text style={[styles.confirmTitle, darkMode ? styles.whiteText : styles.darkText]}>تنبيه تسجيل الخروج</Text>
             <Text style={[styles.confirmSub, darkMode ? styles.whiteText : styles.darkText]}>هل أنت متأكد من رغبتك في تسجيل الخروج من نظام عون؟</Text>
             
@@ -201,7 +218,7 @@ const styles = StyleSheet.create({
     zIndex: 999 
   },
   headerContainer: {
-    height: 65,
+    height: 70,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -214,43 +231,43 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   lightBg: { backgroundColor: '#ffffff' },
-  darkBg: { backgroundColor: '#0F172A' }, 
+  darkBg: { backgroundColor: '#050811' }, 
   lightBorder: { borderBottomColor: '#f1f5f9' },
   darkBorder: { borderBottomColor: '#1e293b' },
   leftSection: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rightSection: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  themeBtn: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  themeBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   lightThemeBtn: { backgroundColor: '#f1f5f9' },
   darkThemeBtn: { backgroundColor: '#1e293b' },
-  logo: { width: 85, height: 32 },
+  logo: { width: 80, height: 35 },
   profileWrapper: { flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 6, paddingVertical: 5, borderRadius: 14, borderWidth: 1 },
   lightProfileBox: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
   darkProfileBox: { backgroundColor: '#1e293b', borderColor: '#334155' },
   userInfo: { alignItems: 'flex-end', marginRight: 8 },
   userName: { fontSize: 13, fontWeight: '700' },
-  roleBadge: { fontSize: 9, color: '#2dd4bf', fontWeight: 'bold', marginTop: -2 },
-  imageContainer: { width: 35, height: 35, borderRadius: 17.5, overflow: 'hidden', borderWidth: 1.5, borderColor: '#2dd4bf' },
+  roleBadge: { fontSize: 9, color: '#00dfc4', fontWeight: 'bold', marginTop: -2 },
+  imageContainer: { width: 35, height: 35, borderRadius: 17.5, overflow: 'hidden', borderWidth: 1.5, borderColor: '#00dfc4' },
   profileImg: { width: '100%', height: '100%' },
   modalOverlay: { flex: 1, backgroundColor: 'transparent' },
-  dropdownMenu: { position: 'absolute', top: 75, left: 16, width: 190, borderRadius: 16, paddingVertical: 10, elevation: 10, shadowColor: '#000', shadowOpacity: 0.2, borderWidth: 1 },
+  dropdownMenu: { position: 'absolute', top: 75, left: 16, width: 200, borderRadius: 16, paddingVertical: 10, elevation: 10, shadowColor: '#000', shadowOpacity: 0.2, borderWidth: 1 },
   lightDropdown: { backgroundColor: '#fff', borderColor: '#f1f5f9' },
-  darkDropdown: { backgroundColor: '#1e293b', borderColor: '#334155' },
+  darkDropdown: { backgroundColor: '#0f172a', borderColor: '#1e293b' },
   menuItem: { paddingVertical: 12, paddingHorizontal: 18 },
   menuText: { fontSize: 14, textAlign: 'right', fontWeight: '600' },
   separator: { height: 1, marginVertical: 6, marginHorizontal: 12 },
   lightSeparator: { backgroundColor: '#f1f5f9' },
-  darkSeparator: { backgroundColor: '#334155' },
+  darkSeparator: { backgroundColor: '#1e293b' },
   menuBtn: { padding: 6 },
   menuLines: { gap: 6, alignItems: 'flex-end' },
-  line: { height: 3, backgroundColor: '#2dd4bf', borderRadius: 2 },
+  line: { height: 3, borderRadius: 2 },
   loginBtn: { backgroundColor: '#0D9488', paddingHorizontal: 18, paddingVertical: 8, borderRadius: 10 },
   loginBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
   whiteText: { color: '#f8fafc' },
   darkText: { color: '#0f172a' },
-  confirmOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.7)', justifyContent: 'center', alignItems: 'center' },
-  confirmBox: { width: '85%', padding: 25, borderRadius: 24, alignItems: 'center' },
+  confirmOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.8)', justifyContent: 'center', alignItems: 'center' },
+  confirmBox: { width: '85%', padding: 25, borderRadius: 24, alignItems: 'center', borderWidth: 1 },
   confirmTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10 },
-  confirmSub: { fontSize: 14, textAlign: 'center', marginBottom: 25, lineHeight: 20, opacity: 0.9 },
+  confirmSub: { fontSize: 14, textAlign: 'center', marginBottom: 25, lineHeight: 22, opacity: 0.9 },
   confirmButtons: { flexDirection: 'row', gap: 12 },
   actionBtn: { flex: 1, height: 50, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
   cancelBtn: { backgroundColor: '#e2e8f0' },

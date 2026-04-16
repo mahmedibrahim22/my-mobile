@@ -19,10 +19,22 @@ const appointmentSchema = new mongoose.Schema({
     // --- البيانات المالية وحالة الموعد ---
     amount: { type: Number, required: true },
     date: { type: Number, required: true }, // Timestamp وقت إجراء عملية الحجز الفعلية
-    cancelled: { type: Boolean, default: false }, // هل الموعد ملغي؟
+    cancelled: { type: Boolean, default: false }, // هل الموعد ملغي نهائياً؟
     payment: { type: Boolean, default: false }, // هل تم الدفع؟
-    isCompleted: { type: Boolean, default: false }, // هل انتهى الكشف؟
+    isCompleted: { type: Boolean, default: false }, // هل انتهى الكشف بنجاح؟ (الزرار الإلزامي للدكتور)
     
+    // 🛡️ نظام إدارة الإلغاء الجديد (بموافقة الطبيب)
+    cancellationRequest: { type: Boolean, default: false }, // هل قدم المريض طلب إلغاء؟
+    cancellationStatus: { 
+        type: String, 
+        enum: ["none", "pending", "accepted", "rejected"], 
+        default: "none" 
+    }, // حالة طلب الإلغاء
+
+    // 🕒 نظام تتابع المواعيد (الـ Blur)
+    isNext: { type: Boolean, default: false }, // هل هذا هو الموعد التالي الذي يجب أن يظهر بدون Blur؟
+    doctorAction: { type: Boolean, default: false }, // هل ضغط الدكتور "صح" أو "خطأ" لبدء التعامل مع الحجز؟
+
     // ✅ بيانات المريض (التي يدخلها المستخدم يدوياً لكل حجز)
     // تدعم حجز المستخدم لنفسه أو لغيره من أفراد العائلة
     patientName: { type: String, required: true }, 
