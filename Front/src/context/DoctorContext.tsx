@@ -21,7 +21,7 @@ interface DoctorContextType {
     completeAppointment: (appointmentId: string) => Promise<void>;
     cancelAppointment: (appointmentId: string) => Promise<void>;
     changeAvailability: () => Promise<void>;
-    // ✅ تحديث الـ Signature لتستقبل 4 معاملات
+    // ✅ تحديث الـ Signature لتستقبل المعاملات الجديدة للجدولة المتقدمة
     updateSlots: (slots: any, duration: number, breakTime: number, extraData: any) => Promise<boolean>; 
     logout: () => void;
 }
@@ -97,6 +97,7 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
                 
                 if (storedToken && userRole === 'doctor') {
                     setDToken(storedToken);
+                    // تنفيذ الجلب المتوازي لتسريع تشغيل التطبيق
                     await Promise.all([
                         getProfileData(storedToken),
                         getDashData(storedToken),
@@ -110,7 +111,7 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
         initDoctor();
     }, [getProfileData, getDashData, getAppointments]);
 
-    // 🔑 تحديث التوكن عند تسجيل الدخول
+    // 🔑 تحديث التوكن عند تسجيل الدخول أو التغيير
     const updateToken = async (token: string) => {
         try {
             if (token) {

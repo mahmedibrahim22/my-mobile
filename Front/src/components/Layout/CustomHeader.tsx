@@ -22,7 +22,7 @@ interface CustomHeaderProps {
   showHome?: boolean;      // التحكم في ظهور زر الهوم
 }
 
-const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHomePress, showHome }) => {
+const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHomePress, showHome = true }) => {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch<AppDispatch>();
   
@@ -46,6 +46,33 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
     ? (doctorCtx?.profileData as any)?.image 
     : userData?.image;
 
+  // 🔥 وظيفة التوجيه الذكي لزر الهوم بناءً على الدور
+  const handleHomeAction = () => {
+    if (onHomePress) {
+      onHomePress(); // إذا تم تمرير وظيفة مخصصة نفذها
+      return;
+    }
+
+    if (!token) {
+      navigation.navigate('AuthStack');
+      return;
+    }
+
+    // التوجيه التلقائي بناءً على الصلاحيات
+    switch (role) {
+      case 'admin':
+        navigation.navigate('AdminStack', { screen: 'AdminDashboard' });
+        break;
+      case 'doctor':
+        navigation.navigate('DoctorStack', { screen: 'DoctorDashboard' });
+        break;
+      case 'user':
+      default:
+        navigation.navigate('MainDrawer', { screen: 'Home' });
+        break;
+    }
+  };
+
   const handleLogout = async () => {
     try {
       setLogoutModalVisible(false);
@@ -60,7 +87,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
       if (appCtx?.setToken) appCtx.setToken("");
 
       // 3. مسح التوكنات من التخزين المحلي
-      await AsyncStorage.multiRemove(['token', 'atoken', 'dtoken']);
+      await AsyncStorage.multiRemove(['token', 'atoken', 'dtoken', 'user_role']);
       
     } catch (error) {
       console.error("Logout Error:", error);
@@ -93,10 +120,10 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
         {/* القسم الأيسر: الأزرار (Home + Theme + Profile) */}
         <View style={styles.leftSection}>
           
-          {/* ✅ زر الهوم (الرجوع للداشبورد الأساسية) */}
+          {/* ✅ زر الهوم الذكي */}
           {showHome && (
             <TouchableOpacity 
-              onPress={onHomePress}
+              onPress={handleHomeAction}
               style={[styles.themeBtn, darkMode ? styles.darkThemeBtn : styles.lightThemeBtn]}
             >
               <Ionicons name="home-outline" size={20} color={darkMode ? "#00dfc4" : "#0f172a"} />

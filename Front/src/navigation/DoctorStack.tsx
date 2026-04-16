@@ -14,7 +14,7 @@ import SettleFeesScreen from '../screens/Admin-and-Doctors/Doctor/SettleFeesScre
  * ✅ تعريف أنواع التنقل الخاصة بالطبيب
  */
 export type DoctorStackParamList = {
-  DoctorHome: undefined; // تم تغيير الاسم من DoctorDashRoot ليتوافق مع التنقل
+  DoctorHome: undefined; // الشاشة الرئيسية للـ Stack (الداشبورد)
   DoctorAppointments: undefined;
   DoctorProfile: undefined;
   ManageSlots: undefined; 
@@ -52,6 +52,7 @@ const DoctorStack = () => {
       }}
     >
       {/* 1️⃣ لوحة تحكم الطبيب - الشاشة الرئيسية */}
+      {/* ملاحظة: headerShown هنا false لأننا نستخدم الـ CustomHeader بداخل الشاشة نفسها */}
       <Stack.Screen 
         name="DoctorHome" 
         component={DoctorDashboardScreen} 
@@ -119,7 +120,10 @@ const DoctorStack = () => {
         component={DoctorProfileScreen} 
         options={{ 
           title: 'الملف الشخصي',
-          headerShown: true
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: '#0f172a',
+          }
         }} 
       />
       

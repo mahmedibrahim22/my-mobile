@@ -224,7 +224,7 @@ export const AppContextProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     /**
-     * 🔄 تحديث البروفايل تلقائياً
+     * 🔄 تحديث البروفايل تلقائياً عند وجود توكن
      */
     useEffect(() => {
         if (token && !userData && !isLoading) {
