@@ -8,7 +8,7 @@ import {
 } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native'; // ✅ أضفنا CommonActions
 
 // ✅ استيراد الـ Types والـ Actions
 import { AppDispatch } from '../store/index';
@@ -132,11 +132,18 @@ const DrawerNavigator = () => {
 
   const token = role === 'doctor' ? doctorCtx?.dToken : role === 'admin' ? adminCtx?.aToken : context?.token;
 
-  // تحديد وجهة زر الهوم بناءً على الـ Role للعودة للداشبورد الأساسية
+  // ✅ التعديل المطلوب: استخدام CommonActions.reset لضمان العودة للداشبورد من أي مكان
   const handleHomePress = () => {
-    if (role === 'admin') navigation.navigate('AdminHome');
-    else if (role === 'doctor') navigation.navigate('DoctorHome');
-    else navigation.navigate('UserHome');
+    let targetRoute = 'UserHome';
+    if (role === 'admin') targetRoute = 'AdminHome';
+    else if (role === 'doctor') targetRoute = 'DoctorHome';
+
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: targetRoute }],
+      })
+    );
   };
 
   type IconProps = { color: string; size: number };

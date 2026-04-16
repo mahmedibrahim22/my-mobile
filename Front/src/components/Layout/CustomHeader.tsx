@@ -18,7 +18,7 @@ import { AppDispatch, RootState } from '../../store';
 interface CustomHeaderProps {
   darkMode: boolean;
   setDarkMode: (v: boolean) => void;
-  onHomePress?: () => void; // إضافة البروب الخاص بالهوم
+  onHomePress?: () => void; // البروب الخاص بالهوم للعودة للداشبورد
   showHome?: boolean;      // التحكم في ظهور زر الهوم
 }
 
@@ -92,7 +92,8 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
         
         {/* القسم الأيسر: الأزرار (Home + Theme + Profile) */}
         <View style={styles.leftSection}>
-          {/* زر الهوم (الرجوع للداشبورد الأساسية) */}
+          
+          {/* ✅ زر الهوم (الرجوع للداشبورد الأساسية) */}
           {showHome && (
             <TouchableOpacity 
               onPress={onHomePress}
