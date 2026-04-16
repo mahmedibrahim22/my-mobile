@@ -3,7 +3,7 @@ import {
   View, Text, Image, StyleSheet, TouchableOpacity, 
   Platform, StatusBar, SafeAreaView, Modal, TouchableWithoutFeedback 
 } from 'react-native';
-import { useNavigation, DrawerActions } from '@react-navigation/native';
+import { useNavigation, DrawerActions, CommonActions } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons'; 
@@ -19,7 +19,7 @@ interface CustomHeaderProps {
   darkMode: boolean;
   setDarkMode: (v: boolean) => void;
   onHomePress?: () => void; // البروب الخاص بالهوم للعودة للداشبورد
-  showHome?: boolean;      // التحكم في ظهور زر الهوم
+  showHome?: boolean;        // التحكم في ظهور زر الهوم
 }
 
 const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHomePress, showHome = true }) => {
@@ -46,30 +46,48 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
     ? (doctorCtx?.profileData as any)?.image 
     : userData?.image;
 
-  // 🔥 وظيفة التوجيه الذكي لزر الهوم بناءً على الدور
+  // 🔥 وظيفة التوجيه الذكي لزر الهوم - تم تحديث الأسماء لتطابق الـ Navigator
   const handleHomeAction = () => {
+    console.log("--- Header Home Button Clicked ---");
+    
     if (onHomePress) {
-      onHomePress(); // إذا تم تمرير وظيفة مخصصة نفذها
+      onHomePress();
       return;
     }
 
     if (!token) {
-      navigation.navigate('AuthStack');
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'AuthStack' }],
+        })
+      );
       return;
     }
 
-    // التوجيه التلقائي بناءً على الصلاحيات
-    switch (role) {
-      case 'admin':
-        navigation.navigate('AdminStack', { screen: 'AdminDashboard' });
-        break;
-      case 'doctor':
-        navigation.navigate('DoctorStack', { screen: 'DoctorDashboard' });
-        break;
-      case 'user':
-      default:
-        navigation.navigate('MainDrawer', { screen: 'Home' });
-        break;
+    // التوجيه التلقائي بناءً على الصلاحيات وحالة السداد لتجنب أخطاء الـ Navigator
+    try {
+        switch (role) {
+            case 'admin':
+              navigation.navigate('AdminStack', { screen: 'AdminDashboardScreen' });
+              break;
+            case 'doctor':
+              const fees = doctorCtx?.profileData?.fees || 0;
+              if (fees > 0) {
+                  // التوجيه لشاشة السداد إذا وجد مديونية
+                  navigation.navigate('DoctorStack', { screen: 'SettleFeesScreen' });
+              } else {
+                  // ✅ تم تعديل الاسم هنا من DoctorHome إلى DoctorDashboardScreen
+                  navigation.navigate('DoctorStack', { screen: 'DoctorDashboardScreen' });
+              }
+              break;
+            case 'user':
+            default:
+              navigation.navigate('MainDrawer', { screen: 'Home' });
+              break;
+          }
+    } catch (err) {
+        console.error("Navigation Error:", err);
     }
   };
 
@@ -77,18 +95,20 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
     try {
       setLogoutModalVisible(false);
       setMenuVisible(false);
-
-      // 1. تنفيذ الـ Logout من Redux
       dispatch(logout());
 
-      // 2. مسح بيانات الـ Context
       if (adminCtx?.setAToken) adminCtx.setAToken("");
       if (doctorCtx?.setDToken) doctorCtx.setDToken("");
       if (appCtx?.setToken) appCtx.setToken("");
 
-      // 3. مسح التوكنات من التخزين المحلي
       await AsyncStorage.multiRemove(['token', 'atoken', 'dtoken', 'user_role']);
       
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'AuthStack' }],
+        })
+      );
     } catch (error) {
       console.error("Logout Error:", error);
     }
@@ -103,11 +123,10 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
   const handleProfileNavigation = () => {
     setMenuVisible(false);
     if (role === 'doctor') {
-      navigation.navigate('DoctorDashboardDrawer', { screen: 'DoctorProfile' });
-    } else if (role === 'user') {
-      navigation.navigate('MyProfile'); 
+      // ✅ تم تعديل الاسم هنا ليطابق DoctorProfileScreen
+      navigation.navigate('DoctorStack', { screen: 'DoctorProfileScreen' });
     } else {
-      navigation.navigate('UserSection');
+      navigation.navigate('MyProfile'); 
     }
   };
 
@@ -120,7 +139,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
         {/* القسم الأيسر: الأزرار (Home + Theme + Profile) */}
         <View style={styles.leftSection}>
           
-          {/* ✅ زر الهوم الذكي */}
+          {/* زر الهوم الذكي */}
           {showHome && (
             <TouchableOpacity 
               onPress={handleHomeAction}
@@ -193,7 +212,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
 
         {/* القسم الأيمن: اللوجو وزر الـ Drawer */}
         <View style={styles.rightSection}>
-          <TouchableOpacity onPress={() => navigation.navigate(role === 'admin' ? 'AdminSection' : 'UserSection')}>
+          <TouchableOpacity onPress={handleHomeAction}>
             <Image source={require('../../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
           </TouchableOpacity>
 

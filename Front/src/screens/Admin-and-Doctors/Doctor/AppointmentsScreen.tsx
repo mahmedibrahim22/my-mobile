@@ -8,11 +8,13 @@ import {
   TouchableOpacity,
   Alert,
   SafeAreaView,
-  Linking
+  Linking,
+  Platform
 } from 'react-native';
 
 import { DoctorContext } from '../../../context/DoctorContext';
 import { AppContext } from '../../../context/AppContext';
+import { Ionicons } from '@expo/vector-icons';
 
 // --- Interfaces ---
 interface UserData {
@@ -32,7 +34,7 @@ interface Appointment {
   amount: number;
   cancelled: boolean;
   isCompleted: boolean;
-  ashaaFile?: string; // رابط ملف الأشعة المرفوعة
+  ashaaFile?: string; 
 }
 
 const DoctorAppointments = () => {
@@ -41,6 +43,7 @@ const DoctorAppointments = () => {
 
   const dToken = doctorCtx?.dToken || '';
   const appointments = (doctorCtx?.appointments as Appointment[]) || [];
+  const dashData = doctorCtx?.dashData; // استدعاء بيانات الداشبورد للتحقق من المديونية
   
   const getAppointments = doctorCtx?.getAppointments;
   const cancelAppointment = doctorCtx?.cancelAppointment;
@@ -48,26 +51,20 @@ const DoctorAppointments = () => {
   const getDashData = doctorCtx?.getDashData; 
 
   const calculateAge = appCtx?.calculateAge;
+  const isDarkMode = appCtx?.isDarkMode ?? true;
+
+  // منطق التحقق من المديونية (نفس المطبق في الداشبورد)
+  const isLateTime = new Date().getHours() >= 23;
+  const showDebtNotice = (dashData?.totalFeesToAwn ?? 0) > 0 || isLateTime;
 
   useEffect(() => {
     if (dToken && getAppointments) {
       getAppointments();
     }
-  }, [dToken, getAppointments]);
-
-  // كونسول لمراقبة البيانات القادمة ومعرفة هل الـ ashaaFile يحتوي على رابط أم لا
-  useEffect(() => {
-    if (appointments.length > 0) {
-      console.log("--- مراجعة بيانات المواعيد ---");
-      appointments.forEach((app, index) => {
-        console.log(`موعد رقم ${index + 1}:`, {
-          ID: app._id,
-          Patient: app.patientName || app.userData?.name,
-          AshaaURL: app.ashaaFile || "لا يوجد رابط أشعة (Undefined/Null)"
-        });
-      });
+    if (dToken && getDashData) {
+      getDashData();
     }
-  }, [appointments]);
+  }, [dToken, getAppointments, getDashData]);
 
   const localSlotDateFormat = (slotDate: string) => {
     try {
@@ -120,11 +117,10 @@ const DoctorAppointments = () => {
   };
 
   const openAshaa = (url?: string) => {
+    if (showDebtNotice) return; // منع الفتح في حال المديونية
     if (url) {
-      console.log("محاولة فتح رابط الأشعة:", url);
-      Linking.openURL(url).catch((err) => {
-        console.error("فشل في فتح الرابط:", err);
-        Alert.alert('خطأ', 'لا يمكن فتح الرابط، تأكد من صحة المسار');
+      Linking.openURL(url).catch(() => {
+        Alert.alert('خطأ', 'لا يمكن فتح الرابط');
       });
     }
   };
@@ -155,19 +151,13 @@ const DoctorAppointments = () => {
 
         {/* اليمين: بيانات المريض وصورة الأشعة */}
         <View style={styles.patientSection}>
-           {/* صورة الأشعة - Thumbnail دائرية */}
            {item.ashaaFile ? (
             <TouchableOpacity 
               onPress={() => openAshaa(item.ashaaFile)} 
-              style={styles.ashaaContainer}
+              style={[styles.ashaaContainer, showDebtNotice && styles.lightBlurEffect]}
               activeOpacity={0.7}
             >
-                <Image 
-                  source={{ uri: item.ashaaFile }} 
-                  style={styles.ashaaThumb}
-                  onLoad={() => console.log(`تم تحميل صورة الأشعة للمريض: ${item.patientName}`)}
-                  onError={(e) => console.log(`خطأ في عرض الصورة للرابط: ${item.ashaaFile}`, e.nativeEvent.error)}
-                />
+                <Image source={{ uri: item.ashaaFile }} style={styles.ashaaThumb} />
                 <View style={styles.ashaaOverlay}>
                     <Text style={styles.ashaaText}>الأشعة</Text>
                 </View>
@@ -179,22 +169,22 @@ const DoctorAppointments = () => {
           )}
 
           <View style={styles.textData}>
-            <Text style={styles.patientName}>
+            <Text style={[styles.patientName, showDebtNotice && styles.lightBlurEffect]}>
               {item.patientName || item.userData?.name || 'مريض غير معروف'}
             </Text>
-            <Text style={styles.patientPhone}>{item.patientPhone}</Text>
+            <Text style={[styles.patientPhone, showDebtNotice && styles.lightBlurEffect]}>{item.patientPhone}</Text>
           </View>
           
           <Image 
             source={{ uri: item.userData?.image || 'https://via.placeholder.com/100' }} 
-            style={styles.patientImg} 
+            style={[styles.patientImg, showDebtNotice && styles.lightBlurEffect]} 
           />
         </View>
       </View>
 
       {/* سطر المعلومات السفلي */}
       <View style={styles.cardFooter}>
-        <View style={styles.infoItem}>
+        <View style={[styles.infoItem, showDebtNotice && styles.lightBlurEffect]}>
           <Text style={styles.infoValue}>{item.patientAge || (calculateAge && item.userData?.dob ? calculateAge(item.userData.dob) : '24')} سنة</Text>
           <Text style={styles.infoLabel}>العمر: </Text>
         </View>
@@ -209,6 +199,14 @@ const DoctorAppointments = () => {
           <Text style={styles.infoLabel}>الموعد: </Text>
         </View>
       </View>
+
+      {/* البلور القوي Overlay عند المديونية */}
+      {showDebtNotice && (
+        <View style={[styles.blurOverlay, { backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.92)' }]}>
+           <Ionicons name="lock-closed" size={18} color="#64748b" style={{ marginBottom: 4, opacity: 0.6 }} />
+           <Text style={styles.blurText}>سدد المديونية لرؤية التفاصيل</Text>
+        </View>
+      )}
     </View>
   );
 
@@ -250,6 +248,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1e293b',
     elevation: 4,
+    overflow: 'hidden' // مهم جداً لمنع خروج طبقة البلور عن حدود الكارت
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   patientSection: { flexDirection: 'row', alignItems: 'center' },
@@ -313,7 +312,20 @@ const styles = StyleSheet.create({
   timeTagText: { color: '#14b8a6', fontSize: 10, fontWeight: '900' },
   
   emptyState: { padding: 60, alignItems: 'center' },
-  emptyText: { color: '#475569', fontSize: 14, fontWeight: '700' }
+  emptyText: { color: '#475569', fontSize: 14, fontWeight: '700' },
+
+  // التأثيرات الخاصة بالـ Blur
+  blurOverlay: { 
+    ...StyleSheet.absoluteFillObject, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    zIndex: 10,
+  },
+  blurText: { color: '#64748b', fontSize: 11, fontWeight: '900', opacity: 0.8 },
+  lightBlurEffect: {
+    opacity: 0.1,
+    ...(Platform.OS === 'ios' ? { filter: 'blur(5px)' } : {}),
+  }
 });
 
 export default DoctorAppointments;

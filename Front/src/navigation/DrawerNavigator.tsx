@@ -132,11 +132,12 @@ const DrawerNavigator = () => {
 
   const token = role === 'doctor' ? doctorCtx?.dToken : role === 'admin' ? adminCtx?.aToken : context?.token;
 
-  // ✅ تعديل منطق الهوم لضمان التوجيه الصحيح لكل دور (Role) عبر الـ Stacks
+  // ✅ تصحيح التوجيه ليتوافق مع أسماء الشاشات الفعلية داخل الـ Stacks
   const handleHomePress = () => {
     if (role === 'admin') {
       navigation.navigate('AdminHome', { screen: 'AdminDashboard' });
     } else if (role === 'doctor') {
+      // توجيه الطبيب لاسم الـ Stack وبداخله شاشة الداشبورد الموحدة
       navigation.navigate('DoctorHome', { screen: 'DoctorDashboard' });
     } else {
       navigation.navigate('UserHome', { screen: 'Home' });
@@ -282,6 +283,7 @@ const DrawerNavigator = () => {
           <Drawer.Screen 
             name="DoctorDashboardDrawer" 
             component={DoctorStack} 
+            initialParams={{ screen: 'DoctorDashboard' }}
             options={{ 
               drawerLabel: 'لوحة التحكم',
               drawerIcon: ({ color }: IconProps) => <Ionicons name="grid-outline" size={20} color={color} />

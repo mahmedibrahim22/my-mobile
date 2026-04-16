@@ -1,30 +1,44 @@
 import { useColorScheme } from 'react-native';
 
-// 1. الألوان الثابتة للهوية (تصدير مباشر عشان نضمن الوصول لها)
+// 1. الألوان الثابتة للهوية (الأساسيات)
 export const brandColors = {
   primary: "#007074",       // الـ Primary الأساسي
   brandTeal: "#14b8a6",     // الـ Brand Teal
-  accent: "#0d9488",
+  accent: "#00dfc4",        // لون التميز المستخدم في الـ Dashboard
   success: "#10b981",
   danger: "#ef4444",
   warning: "#f59e0b",
   info: "#3b82f6",
 };
 
-// 2. تعريف الثيمات
+// 2. ألوان الشفافية والبلور (Blur & Overlays)
+// تم إضافة هذه القيم لتوحيد شكل الـ "المنع" و "البلور" في شاشات الطبيب
+export const transparency = {
+  blurDark: "rgba(15, 23, 42, 0.92)",    // بلور قوي للخلفية الداكنة
+  blurLight: "rgba(241, 245, 249, 0.92)", // بلور قوي للخلفية الفاتحة
+  overlayDark: "rgba(5, 8, 17, 0.85)",   // غطاء داكن جداً
+  overlayLight: "rgba(255, 255, 255, 0.85)", // غطاء فاتح جداً
+  glassTeal: "rgba(20, 184, 166, 0.15)", // تأثير زجاجي بلون البراند
+  glassDanger: "rgba(239, 68, 68, 0.1)", // تأثير زجاجي للتحذيرات
+};
+
+// 3. تعريف الثيمات
 export const Themes = {
   dark: {
     ...brandColors,
-    background: "#0F172A",
-    card: "#1E293B",
+    ...transparency,
+    background: "#050811", // تم التحديث ليطابق خلفية الـ Dashboard الداكنة جداً
+    card: "#0F172A",
     text: "#F8FAFC",
     subtext: "#94A3B8",
-    border: "#334155",
+    border: "#1E293B",
     tabIconDefault: "#475569",
     tabIconSelected: brandColors.brandTeal,
+    skeleton: "#1e293b",
   },
   light: {
     ...brandColors,
+    ...transparency,
     background: "#F1F5F9",
     card: "#FFFFFF",
     text: "#0F172A",
@@ -32,23 +46,25 @@ export const Themes = {
     border: "#E2E8F0",
     tabIconDefault: "#94A3B8",
     tabIconSelected: brandColors.primary,
+    skeleton: "#e2e8f0",
   },
 };
 
 /**
- * 💡 السر هنا: 
- * بنعمل Export لـ Colors ككائن ثابت بيحتوي على الـ primary مباشرة 
- * عشان الشاشات القديمة اللي بتستخدم Colors.primary تشتغل فوراً
+ * 💡 التوافقية: 
+ * تصدير Colors ككائن ثابت يحتوي على القيم الأساسية 
+ * لضمان عمل الشاشات التي تعتمد على الاستيراد المباشر
  */
 export const Colors = {
-  ...brandColors, // ده بيضمن إن Colors.primary متبقاش undefined أبدًا
-  ...Themes.dark, // الافتراضي دارك
+  ...brandColors,
+  ...transparency,
+  ...Themes.dark, // الافتراضي هو الدارك ثيم
   light: Themes.light,
   dark: Themes.dark,
 };
 
 /**
- * Hook مخصص للاستخدام الجديد
+ * Hook مخصص للوصول للثيم الحالي برمجياً
  */
 export const useAppTheme = (manualTheme?: 'light' | 'dark') => {
   const systemColorScheme = useColorScheme();

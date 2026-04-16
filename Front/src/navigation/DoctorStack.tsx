@@ -14,7 +14,8 @@ import SettleFeesScreen from '../screens/Admin-and-Doctors/Doctor/SettleFeesScre
  * ✅ تعريف أنواع التنقل الخاصة بالطبيب
  */
 export type DoctorStackParamList = {
-  DoctorHome: undefined; // الشاشة الرئيسية للـ Stack (الداشبورد)
+  DoctorHome: undefined; 
+  DoctorDashboard: undefined; // إضافة هذا الاسم ليتوافق مع طلب التنقل من الـ Drawer
   DoctorAppointments: undefined;
   DoctorProfile: undefined;
   ManageSlots: undefined; 
@@ -27,7 +28,7 @@ const Stack = createStackNavigator<DoctorStackParamList>();
 const DoctorStack = () => {
   return (
     <Stack.Navigator
-      initialRouteName="DoctorHome"
+      initialRouteName="DoctorDashboard" // جعل الداشبورد هي البداية الافتراضية
       screenOptions={{
         // 🎨 تصميم الهيدر الداكن ليتماشى مع هوية عون (Modern Dark Mode)
         headerStyle: {
@@ -52,13 +53,22 @@ const DoctorStack = () => {
       }}
     >
       {/* 1️⃣ لوحة تحكم الطبيب - الشاشة الرئيسية */}
-      {/* ملاحظة: headerShown هنا false لأننا نستخدم الـ CustomHeader بداخل الشاشة نفسها */}
+      {/* تم استخدام الاسم "DoctorDashboard" هنا ليتطابق مع الـ Payload في الـ DrawerNavigator */}
+      <Stack.Screen 
+        name="DoctorDashboard" 
+        component={DoctorDashboardScreen} 
+        options={{ 
+          headerShown: false,
+          title: 'لوحة التحكم',
+        }} 
+      />
+
+      {/* شاشة احتياطية بنفس المكون لضمان عدم حدوث خطأ إذا تم استدعاء DoctorHome */}
       <Stack.Screen 
         name="DoctorHome" 
         component={DoctorDashboardScreen} 
         options={{ 
           headerShown: false,
-          title: 'لوحة التحكم',
         }} 
       />
 

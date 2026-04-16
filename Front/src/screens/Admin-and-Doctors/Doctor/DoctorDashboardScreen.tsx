@@ -156,7 +156,7 @@ const DoctorDashboard = () => {
                     {dashData?.paymentStatus !== 'pending' && (
                         <TouchableOpacity 
                             style={styles.payNowBtn} 
-                            onPress={() => navigation.navigate('SettleFees', { fees: dashData?.totalFeesToAwn })}
+                            onPress={() => navigation.navigate('SettleFeesScreen', { fees: dashData?.totalFeesToAwn })}
                         >
                             <Text style={styles.payNowText}>سدد الآن</Text>
                         </TouchableOpacity>
@@ -213,14 +213,19 @@ const DoctorDashboard = () => {
                     <View style={styles.emptyState}><Text style={[styles.emptyText, { color: theme.textSub }]}>لا توجد مواعيد حالياً</Text></View>
                 ) : (
                     dashData.latestAppointments.map((item, index) => {
-                        const isBlurred = dashData.nextAppointmentId !== null && item._id !== dashData.nextAppointmentId && !item.isCompleted && !item.cancelled;
+                        const isBlurred = (showDebtNotice || (dashData.nextAppointmentId !== null && item._id !== dashData.nextAppointmentId)) && !item.isCompleted && !item.cancelled;
                         
                         return (
                             <View key={item._id || index} style={[styles.appointmentCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
                                 <View style={styles.rowReverse}>
-                                    <Image source={{ uri: item.userData.image }} style={styles.patientImg} />
+                                    <Image 
+                                        source={{ uri: item.userData.image }} 
+                                        style={[styles.patientImg, isBlurred && styles.lightBlurEffect]} 
+                                    />
                                     <View style={styles.patientDetails}>
-                                        <Text style={[styles.patientName, { color: theme.textMain }]}>{item.userData.name}</Text>
+                                        <Text style={[styles.patientName, { color: theme.textMain }, isBlurred && styles.lightBlurEffect]}>
+                                            {item.userData.name}
+                                        </Text>
                                         <Text style={[styles.timeText, { color: theme.accent }]}>{item.slotTime} • {slotDateFormat(item.slotDate)}</Text>
                                     </View>
                                     
@@ -248,8 +253,11 @@ const DoctorDashboard = () => {
                                 </View>
 
                                 {isBlurred && (
-                                    <View style={[styles.blurOverlay, { backgroundColor: isDarkMode ? 'rgba(5, 8, 17, 0.85)' : 'rgba(255,255,255,0.85)' }]}>
-                                        <Text style={[styles.blurText, { color: theme.textSub }]}>أنهِ الحجز الحالي أولاً</Text>
+                                    <View style={[styles.blurOverlay, { backgroundColor: isDarkMode ? 'rgba(5, 8, 17, 0.96)' : 'rgba(255, 255, 255, 0.94)' }]}>
+                                        <Ionicons name="lock-closed" size={20} color={theme.textSub} style={{ marginBottom: 8, opacity: 0.5 }} />
+                                        <Text style={[styles.blurText, { color: theme.textSub }]}>
+                                            {showDebtNotice ? "سدد المديونية لرؤية البيانات" : "أنهِ الحجز الحالي أولاً"}
+                                        </Text>
                                     </View>
                                 )}
                             </View>
@@ -306,8 +314,17 @@ const styles = StyleSheet.create({
     ageText: { fontSize: 10, fontWeight: '900' },
     emptyState: { padding: 50, alignItems: 'center' },
     emptyText: { fontWeight: '700' },
-    blurOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 10 },
-    blurText: { fontSize: 12, fontWeight: '900', opacity: 0.8 }
+    blurOverlay: { 
+        ...StyleSheet.absoluteFillObject, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        zIndex: 20,
+    },
+    blurText: { fontSize: 12, fontWeight: '900', textAlign: 'center', paddingHorizontal: 20 },
+    lightBlurEffect: {
+        opacity: 0.15,
+        ...(Platform.OS === 'ios' ? { filter: 'blur(5px)' } : {}),
+    }
 });
 
 export default DoctorDashboard;
