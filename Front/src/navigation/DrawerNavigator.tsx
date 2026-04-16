@@ -8,7 +8,6 @@ import {
 } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
-import { useNavigation } from '@react-navigation/native';
 
 // ✅ استيراد الـ Types والـ Actions
 import { AppDispatch } from '../store/index';
@@ -27,7 +26,6 @@ import DoctorStack from './DoctorStack';
 
 const Drawer = createDrawerNavigator();
 
-// 🎨 مكون محتوى الدراور الجانبي المطور (Sidebar)
 const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   const dispatch = useDispatch<AppDispatch>();
   
@@ -52,12 +50,8 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   }, [context?.token, userData, role, dispatch, doctorCtx?.dToken, adminCtx?.aToken]);
 
   const handleLogout = async () => {
-    if (context?.logout) {
-      await context.logout();
-    }
-    if (doctorCtx?.logout) {
-      await doctorCtx.logout();
-    }
+    if (context?.logout) await context.logout();
+    if (doctorCtx?.logout) await doctorCtx.logout();
     dispatch(logoutRedux());
     if (adminCtx) adminCtx.setAToken(""); 
   };
@@ -69,7 +63,6 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   return (
     <View style={{ flex: 1, backgroundColor: bgColor }}>
       <DrawerContentScrollView {...props}>
-        {/* هيدر الدراور */}
         <View style={[styles.drawerHeader, { borderBottomColor: borderColor }]}>
           <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
               <Text style={styles.drawerBrand}>عَوْن</Text>
@@ -80,13 +73,11 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
                 />
               )}
           </View>
-
           <View style={styles.roleBadge}>
               <Text style={styles.drawerUserRole}>
                  {role === 'admin' ? 'إدارة المنصة' : role === 'doctor' ? 'دكتور عون' : 'حساب مستخدم'}
               </Text>
           </View>
-          
           <View style={styles.userInfoContainer}>
              <Text style={[styles.userName, { color: textColor }]}>
                {(userData as any)?.name || (role === 'admin' ? 'مدير النظام' : 'مستخدم عون')}
@@ -106,7 +97,6 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
         </View>
       </DrawerContentScrollView>
 
-      {/* زر تسجيل الخروج */}
       {token ? (
         <TouchableOpacity 
           style={[styles.logoutButton, { borderTopColor: borderColor, backgroundColor: isDarkMode ? '#0B1222' : '#f9fafb' }]} 
@@ -124,78 +114,123 @@ const DrawerNavigator = () => {
   const context = useContext(AppContext);
   const doctorCtx = useContext(DoctorContext);
   const adminCtx = useContext(AdminContext);
-  const navigation = useNavigation<any>();
   
   const isDarkMode = context?.isDarkMode ?? true;
   const toggleTheme = context?.toggleTheme ?? (() => {});
   const role = context?.userRole;
-
   const token = role === 'doctor' ? doctorCtx?.dToken : role === 'admin' ? adminCtx?.aToken : context?.token;
-
-  // ✅ التعديل الجوهري: استخدام الأسماء المطلوبة لضمان البقاء داخل الـ Drawer
-  const handleHomePress = () => {
-    if (role === 'admin') {
-      navigation.navigate('AdminSection');
-    } else if (role === 'doctor') {
-      navigation.navigate('DoctorSection');
-    } else {
-      navigation.navigate('UserHome');
-    }
-  };
 
   type IconProps = { color: string; size: number };
 
   return (
     <Drawer.Navigator
       drawerContent={(props: DrawerContentComponentProps) => <CustomDrawerContent {...props} />}
-      screenOptions={{
+      screenOptions={({ navigation }: any) => ({
         drawerPosition: 'right', 
         headerShown: true,
         header: () => (
             <CustomHeader 
                 darkMode={isDarkMode} 
                 setDarkMode={toggleTheme} 
-                onHomePress={handleHomePress}
+                onHomePress={() => {
+                  if (role === 'admin') navigation.navigate('AdminSection');
+                  else if (role === 'doctor') navigation.navigate('DoctorDashboardDrawer');
+                  else navigation.navigate('UserHome');
+                }}
                 showHome={!!token} 
             />
         ),
         drawerActiveBackgroundColor: 'rgba(45, 212, 191, 0.1)',
         drawerActiveTintColor: '#2dd4bf',
         drawerInactiveTintColor: isDarkMode ? '#94a3b8' : '#64748b',
-        drawerLabelStyle: {
-          fontSize: 14,
-          fontWeight: '700',
-          textAlign: 'right',
-          marginRight: 5
-        },
-        drawerStyle: {
-          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-          width: 280,
-        },
+        drawerLabelStyle: { fontSize: 14, fontWeight: '700', textAlign: 'right', marginRight: 5 },
+        drawerStyle: { backgroundColor: isDarkMode ? '#0f172a' : '#ffffff', width: 280 },
         headerTitle: "", 
-      }}
+      })}
     >
-      {/* 🛠️ شاشات الأدمن */}
+      {/* 🛠️ شاشات الأدمن كاملة كما كانت */}
       {token && role === 'admin' ? (
         <>
           <Drawer.Screen 
             name="AdminSection" 
             component={AdminStack} 
             options={{ 
-              drawerLabel: 'الرئيسية',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="home-outline" size={20} color={color} />
+              drawerLabel: 'لوحة التحكم',
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="grid-outline" size={20} color={color} />
+            }}
+          />
+          <Drawer.Screen 
+            name="AddDoctorDrawer" 
+            component={AdminStack} 
+            initialParams={{ screen: 'AddDoctor' }}
+            options={{ 
+              drawerLabel: 'إضافة طبيب جديد',
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="person-add-outline" size={20} color={color} />
+            }}
+          />
+          <Drawer.Screen 
+            name="DoctorListDrawer" 
+            component={AdminStack} 
+            initialParams={{ screen: 'DoctorListInternal' }}
+            options={{ 
+              drawerLabel: 'قائمة الأطباء',
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="people-outline" size={20} color={color} />
+            }}
+          />
+          <Drawer.Screen 
+            name="AppointmentsDrawer" 
+            component={AdminStack} 
+            initialParams={{ screen: 'AppointmentsInternal' }}
+            options={{ 
+              drawerLabel: 'سجل المواعيد',
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="calendar-outline" size={20} color={color} />
+            }}
+          />
+          <Drawer.Screen 
+            name="LabsDrawer" 
+            component={AdminStack} 
+            initialParams={{ screen: 'LabsInternal' }}
+            options={{ 
+              drawerLabel: 'إدارة المعامل',
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="flask-outline" size={20} color={color} />
+            }}
+          />
+          <Drawer.Screen 
+            name="PharmacyDrawer" 
+            component={AdminStack} 
+            initialParams={{ screen: 'PharmaciesInternal' }}
+            options={{ 
+              drawerLabel: 'إدارة الصيدليات',
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="medical-outline" size={20} color={color} />
+            }}
+          />
+          <Drawer.Screen 
+            name="DeliveryDrawer" 
+            component={AdminStack} 
+            initialParams={{ screen: 'DeliveryInternal' }}
+            options={{ 
+              drawerLabel: 'طلبات التوصيل',
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="bicycle-outline" size={20} color={color} />
+            }}
+          />
+          <Drawer.Screen 
+            name="UserSectionPreview" 
+            component={UserStack} 
+            options={{ 
+              drawerLabel: 'عرض كـ مستخدم',
+              headerShown: true, 
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="eye-outline" size={20} color={color} />
             }}
           />
         </>
       ) 
       
-      /* 🩺 شاشات الطبيب */
+      /* 🩺 شاشات الطبيب (مع شاشة تسوية الرسوم الجديدة) */
       : token && role === 'doctor' ? (
         <>
           <Drawer.Screen 
-            name="DoctorSection" 
+            name="DoctorDashboardDrawer" 
             component={DoctorStack} 
-            initialParams={{ screen: 'DoctorDashboard' }}
             options={{ 
               drawerLabel: 'الرئيسية',
               drawerIcon: ({ color }: IconProps) => <Ionicons name="home-outline" size={20} color={color} />

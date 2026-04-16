@@ -4,7 +4,7 @@ import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/
 import { Platform, View, ActivityIndicator } from 'react-native';
 import { useSelector } from 'react-redux';
 
-// استيراد الـ Context الخاص بالطبيب لفحص حالة السداد
+// استيراد الـ Context الخاص بالطبيب لفحص حالة السداد والمديونية
 import { DoctorContext } from '../context/DoctorContext';
 
 import AuthStack from './AuthStack';
@@ -36,18 +36,19 @@ export type RootStackParamList = {
 const Stack = createStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
+  // سحب حالة المستخدم من Redux
   const { token, loading, role } = useSelector((state: any) => state.user);
   
-  // الوصول لبيانات الطبيب لمعرفة حالة السداد من خلال الـ Context
+  // الوصول لبيانات الطبيب لمعرفة حالة السداد والرسوم
   const doctorCtx = useContext(DoctorContext);
   
-  // منطق التحقق: إذا كانت مديونية الطبيب أكبر من صفر أو الحساب معلق
+  // منطق التحقق من المديونية (يستخدم لاحقاً لتقييد الشاشات إذا لزم الأمر)
   const totalFees = doctorCtx?.dashData?.totalFeesToAwn || 0;
   const isSuspended = doctorCtx?.dashData?.isSuspended || false;
   const hasDebt = totalFees > 0 || isSuspended;
 
-  // 📝 تسجيل حالة التنقل في الكونسول لكشف أي تعارض
-  console.log("--- AppNavigator Trace ---");
+  // 📝 تسجيل حالة الملاحة والبيانات الحالية للديتيلز
+  console.log("--- 🕵️ AppNavigator Trace ---");
   console.log("Current User Role:", role);
   console.log("Authentication Token:", !!token);
   console.log("Doctor Debt Status:", totalFees);
@@ -65,14 +66,26 @@ const AppNavigator = () => {
 
   return (
     <Stack.Navigator 
-      // ✅ التعديل الجوهري: طالما فيه توكن، البداية دائماً من MainDrawer 
-      // عشان السايد بار والناف بار يفضلوا شغالين للدكتور والأدمن والمستخدم
-      initialRouteName={!token ? "AuthStack" : "MainDrawer"}
+      // التحديد الذكي: لو مفيش توكن يروح للوجين، لو فيه يروح للدراور
+      initialRouteName={!token ? "AuthStack" : "MainDrawer"} 
       screenOptions={{ 
         headerShown: false,
         gestureEnabled: true,
         cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
         detachPreviousScreen: Platform.OS === 'ios' ? false : true, 
+      }}
+      // كونسول لمتابعة تغيير المسارات وحل مشكلة الـ Type e
+      screenListeners={{
+        state: (e: any) => {
+          try {
+            if (e.data.state.routes) {
+              const currentRoute = e.data.state.routes[e.data.state.index].name;
+              console.log("📍 Navigation Path:", currentRoute);
+            }
+          } catch (err) {
+            console.error("🔴 Navigation Listener Error:", err);
+          }
+        }
       }}
     >
       {/* 🔐 مسار المصادقة: إذا لم يوجد توكن */}
@@ -87,31 +100,24 @@ const AppNavigator = () => {
         />
       ) : (
         <>
-          {/* ✅ المسار الرئيسي الموحد (Drawer) */}
+          {/* ✅ المسار الأساسي الموحد (Drawer) */}
           <Stack.Screen 
             name="MainDrawer" 
             component={DrawerNavigator} 
           />
 
-          {/* 1. مسار الطبيب (للاستخدام عند الحاجة للتوجيه المباشر) */}
+          {/* 🚀 الـ Stacks كمسارات مستقلة للسماح بالتحويل المباشر */}
           <Stack.Screen 
             name="DoctorStack" 
-            component={DoctorStack}
-            listeners={{
-              focus: () => console.log("Navigation Success: DoctorStack is now active")
-            }}
+            component={DoctorStack} 
           />
-
-          {/* 2. مسار الأدمن (للاستخدام عند الحاجة للتوجيه المباشر) */}
+          
           <Stack.Screen 
             name="AdminStack" 
             component={AdminStack} 
-            listeners={{
-              focus: () => console.log("Navigation Success: AdminStack is now active")
-            }}
           />
 
-          {/* 📁 شاشات المحتوى المشتركة */}
+          {/* 📁 شاشات المحتوى المشترك */}
           <Stack.Screen name="AllDoctors" component={AllDoctorsScreen} />
           <Stack.Screen name="Appointment" component={AppointmentScreen} />
           <Stack.Screen name="MyProfile" component={MyProfileScreen} />

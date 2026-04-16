@@ -46,7 +46,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
     ? (doctorCtx?.profileData as any)?.image 
     : userData?.image;
 
-  // 🔥 وظيفة التوجيه الذكي لزر الهوم - تم التصحيح لتطابق AppNavigator
+  // 🔥 وظيفة التوجيه الذكي لزر الهوم
   const handleHomeAction = () => {
     if (onHomePress) {
       onHomePress();
@@ -66,18 +66,13 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
     try {
         switch (role) {
             case 'admin':
-              // التوجيه لـ AdminStack (الاسم المعرف في AppNavigator)
               navigation.navigate('AdminStack');
               break;
             case 'doctor':
-              // التحقق من مديونية الطبيب
-              const fees = doctorCtx?.profileData?.fees || 0;
-              // التوجيه للـ Stack الخاص بالطبيب (DoctorStack)
               navigation.navigate('DoctorStack');
               break;
             case 'user':
             default:
-              // التوجيه لـ MainDrawer (الاسم المعرف في AppNavigator)
               navigation.navigate('MainDrawer');
               break;
           }
@@ -139,18 +134,18 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
               onPress={handleHomeAction}
               style={[styles.themeBtn, darkMode ? styles.darkThemeBtn : styles.lightThemeBtn]}
             >
-              <Ionicons name="home-outline" size={20} color={darkMode ? "#00dfc4" : "#0f172a"} />
+              <Ionicons name="home-outline" size={22} color={darkMode ? "#00dfc4" : "#0f172a"} />
             </TouchableOpacity>
           )}
 
-          {/* زر الثيم */}
+          {/* ✅ زر الثيم المحدث بنفس الستايل المطلوب */}
           <TouchableOpacity 
             onPress={() => setDarkMode(!darkMode)}
             style={[styles.themeBtn, darkMode ? styles.darkThemeBtn : styles.lightThemeBtn]}
           >
             <Ionicons 
                 name={darkMode ? "sunny-outline" : "moon-outline"} 
-                size={20} 
+                size={22} 
                 color={darkMode ? "#f8fafc" : "#475569"} 
             />
           </TouchableOpacity>
@@ -277,9 +272,18 @@ const styles = StyleSheet.create({
   darkBorder: { borderBottomColor: '#1e293b' },
   leftSection: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rightSection: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  themeBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  lightThemeBtn: { backgroundColor: '#f1f5f9' },
-  darkThemeBtn: { backgroundColor: '#1e293b' },
+  // ✅ ستايل موحد للأزرار لضمان المظهر المتناسق
+  themeBtn: { 
+    width: 44, 
+    height: 44, 
+    borderRadius: 14, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent'
+  },
+  lightThemeBtn: { backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' },
+  darkThemeBtn: { backgroundColor: '#1e293b', borderColor: '#334155' },
   logo: { width: 80, height: 35 },
   profileWrapper: { flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 6, paddingVertical: 5, borderRadius: 14, borderWidth: 1 },
   lightProfileBox: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
