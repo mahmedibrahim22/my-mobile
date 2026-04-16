@@ -82,6 +82,10 @@ const DoctorDashboard = () => {
             
             if (data.success) {
                 setDashData(data.dashData);
+                // تحديث بيانات الطبيب في الكونتيكست لضمان تزامن المديونية في السايد بار
+                if (doctorCtx?.setDashData) {
+                    doctorCtx.setDashData(data.dashData);
+                }
             }
         } catch (error: any) {
             console.error("Dashboard Fetch Error:", error.message);
@@ -137,6 +141,7 @@ const DoctorDashboard = () => {
         } catch { return slotDate; }
     };
 
+    // ✅ تحسين منطق التنبيه بالمديونية والوقت المتأخر
     const isLateTime = new Date().getHours() >= 23;
     const showDebtNotice = (dashData?.totalFeesToAwn ?? 0) > 0 || isLateTime;
 
@@ -156,7 +161,7 @@ const DoctorDashboard = () => {
                     {dashData?.paymentStatus !== 'pending' && (
                         <TouchableOpacity 
                             style={styles.payNowBtn} 
-                            onPress={() => navigation.navigate('SettleFeesScreen', { fees: dashData?.totalFeesToAwn })}
+                            onPress={() => navigation.navigate('SettleFeesDrawer', { fees: dashData?.totalFeesToAwn })}
                         >
                             <Text style={styles.payNowText}>سدد الآن</Text>
                         </TouchableOpacity>
@@ -213,7 +218,9 @@ const DoctorDashboard = () => {
                     <View style={styles.emptyState}><Text style={[styles.emptyText, { color: theme.textSub }]}>لا توجد مواعيد حالياً</Text></View>
                 ) : (
                     dashData.latestAppointments.map((item, index) => {
-                        const isBlurred = (showDebtNotice || (dashData.nextAppointmentId !== null && item._id !== dashData.nextAppointmentId)) && !item.isCompleted && !item.cancelled;
+                        // ✅ منطق التغبيش (Blur): إذا كان هناك مديونية أو ليس هو الدور التالي
+                        const isNotNext = dashData.nextAppointmentId !== null && item._id !== dashData.nextAppointmentId;
+                        const isBlurred = (showDebtNotice || isNotNext) && !item.isCompleted && !item.cancelled;
                         
                         return (
                             <View key={item._id || index} style={[styles.appointmentCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -248,16 +255,28 @@ const DoctorDashboard = () => {
                                 </View>
                                 
                                 <View style={[styles.cardFooter, { borderTopColor: theme.border }]}>
-                                    <Text style={[styles.illnessText, { color: theme.textSub }]} numberOfLines={1}>{item.illnessDescription || 'لا يوجد وصف للحالة'}</Text>
-                                    <View style={[styles.ageBadge, { backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9' }]}><Text style={[styles.ageText, { color: theme.textSub }]}>{item.patientAge} سنة</Text></View>
+                                    <Text style={[styles.illnessText, { color: theme.textSub }, isBlurred && styles.lightBlurEffect]} numberOfLines={1}>
+                                        {item.illnessDescription || 'لا يوجد وصف للحالة'}
+                                    </Text>
+                                    <View style={[styles.ageBadge, { backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9' }]}>
+                                        <Text style={[styles.ageText, { color: theme.textSub }]}>{item.patientAge} سنة</Text>
+                                    </View>
                                 </View>
 
                                 {isBlurred && (
-                                    <View style={[styles.blurOverlay, { backgroundColor: isDarkMode ? 'rgba(5, 8, 17, 0.96)' : 'rgba(255, 255, 255, 0.94)' }]}>
-                                        <Ionicons name="lock-closed" size={20} color={theme.textSub} style={{ marginBottom: 8, opacity: 0.5 }} />
-                                        <Text style={[styles.blurText, { color: theme.textSub }]}>
-                                            {showDebtNotice ? "سدد المديونية لرؤية البيانات" : "أنهِ الحجز الحالي أولاً"}
+                                    <View style={[styles.blurOverlay, { backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.95)' }]}>
+                                        <Ionicons name="lock-closed" size={24} color={theme.accent} style={{ marginBottom: 8 }} />
+                                        <Text style={[styles.blurText, { color: theme.textMain }]}>
+                                            {showDebtNotice ? "يجب سداد مديونية عون أولاً" : "أنهِ الكشف السابق لرؤية البيانات"}
                                         </Text>
+                                        {showDebtNotice && (
+                                            <TouchableOpacity 
+                                                onPress={() => navigation.navigate('SettleFeesDrawer')}
+                                                style={{ marginTop: 10, borderBottomWidth: 1, borderBottomColor: theme.accent }}
+                                            >
+                                                <Text style={{ color: theme.accent, fontSize: 11, fontWeight: '900' }}>انتقل لصفحة السداد</Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                 )}
                             </View>
@@ -322,8 +341,8 @@ const styles = StyleSheet.create({
     },
     blurText: { fontSize: 12, fontWeight: '900', textAlign: 'center', paddingHorizontal: 20 },
     lightBlurEffect: {
-        opacity: 0.15,
-        ...(Platform.OS === 'ios' ? { filter: 'blur(5px)' } : {}),
+        opacity: 0.1,
+        ...(Platform.OS === 'ios' ? { filter: 'blur(10px)' } : {}),
     }
 });
 

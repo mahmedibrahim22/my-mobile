@@ -37,7 +37,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
   const doctorCtx = useContext(DoctorContext);
   const appCtx = useContext(AppContext);
 
-  // ✅ تحديد البيانات المعروضة بناءً على الدور (دكتور أم مستخدم)
+  // ✅ تحديد البيانات المعروضة بناءً على الدور
   const displayName = role === 'doctor' 
     ? (doctorCtx?.profileData as any)?.name 
     : userData?.name;
@@ -46,10 +46,8 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
     ? (doctorCtx?.profileData as any)?.image 
     : userData?.image;
 
-  // 🔥 وظيفة التوجيه الذكي لزر الهوم - تم تحديث الأسماء لتطابق الـ Navigator
+  // 🔥 وظيفة التوجيه الذكي لزر الهوم - تم التصحيح لتطابق AppNavigator
   const handleHomeAction = () => {
-    console.log("--- Header Home Button Clicked ---");
-    
     if (onHomePress) {
       onHomePress();
       return;
@@ -65,25 +63,22 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
       return;
     }
 
-    // التوجيه التلقائي بناءً على الصلاحيات وحالة السداد لتجنب أخطاء الـ Navigator
     try {
         switch (role) {
             case 'admin':
-              navigation.navigate('AdminStack', { screen: 'AdminDashboardScreen' });
+              // التوجيه لـ AdminStack (الاسم المعرف في AppNavigator)
+              navigation.navigate('AdminStack');
               break;
             case 'doctor':
+              // التحقق من مديونية الطبيب
               const fees = doctorCtx?.profileData?.fees || 0;
-              if (fees > 0) {
-                  // التوجيه لشاشة السداد إذا وجد مديونية
-                  navigation.navigate('DoctorStack', { screen: 'SettleFeesScreen' });
-              } else {
-                  // ✅ تم تعديل الاسم هنا من DoctorHome إلى DoctorDashboardScreen
-                  navigation.navigate('DoctorStack', { screen: 'DoctorDashboardScreen' });
-              }
+              // التوجيه للـ Stack الخاص بالطبيب (DoctorStack)
+              navigation.navigate('DoctorStack');
               break;
             case 'user':
             default:
-              navigation.navigate('MainDrawer', { screen: 'Home' });
+              // التوجيه لـ MainDrawer (الاسم المعرف في AppNavigator)
+              navigation.navigate('MainDrawer');
               break;
           }
     } catch (err) {
@@ -123,8 +118,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ darkMode, setDarkMode, onHo
   const handleProfileNavigation = () => {
     setMenuVisible(false);
     if (role === 'doctor') {
-      // ✅ تم تعديل الاسم هنا ليطابق DoctorProfileScreen
-      navigation.navigate('DoctorStack', { screen: 'DoctorProfileScreen' });
+      navigation.navigate('DoctorStack');
     } else {
       navigation.navigate('MyProfile'); 
     }

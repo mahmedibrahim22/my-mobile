@@ -8,14 +8,13 @@ import AppointmentsScreen from '../screens/Admin-and-Doctors/Doctor/Appointments
 import DoctorProfileScreen from '../screens/Admin-and-Doctors/Doctor/DoctorProfileScreen';
 import ManageSlotsScreen from '../screens/Admin-and-Doctors/Doctor/ManageSlotsScreen';
 import MyScheduleScreen from '../screens/Admin-and-Doctors/Doctor/MyScheduleScreen';
-import SettleFeesScreen from '../screens/Admin-and-Doctors/Doctor/SettleFeesScreen'; // استيراد شاشة السداد الجديدة
+import SettleFeesScreen from '../screens/Admin-and-Doctors/Doctor/SettleFeesScreen'; 
 
 /**
  * ✅ تعريف أنواع التنقل الخاصة بالطبيب
  */
 export type DoctorStackParamList = {
-  DoctorHome: undefined; 
-  DoctorDashboard: undefined; // إضافة هذا الاسم ليتوافق مع طلب التنقل من الـ Drawer
+  DoctorDashboard: undefined; 
   DoctorAppointments: undefined;
   DoctorProfile: undefined;
   ManageSlots: undefined; 
@@ -28,7 +27,7 @@ const Stack = createStackNavigator<DoctorStackParamList>();
 const DoctorStack = () => {
   return (
     <Stack.Navigator
-      initialRouteName="DoctorDashboard" // جعل الداشبورد هي البداية الافتراضية
+      initialRouteName="DoctorDashboard"
       screenOptions={{
         // 🎨 تصميم الهيدر الداكن ليتماشى مع هوية عون (Modern Dark Mode)
         headerStyle: {
@@ -53,22 +52,12 @@ const DoctorStack = () => {
       }}
     >
       {/* 1️⃣ لوحة تحكم الطبيب - الشاشة الرئيسية */}
-      {/* تم استخدام الاسم "DoctorDashboard" هنا ليتطابق مع الـ Payload في الـ DrawerNavigator */}
       <Stack.Screen 
         name="DoctorDashboard" 
         component={DoctorDashboardScreen} 
         options={{ 
-          headerShown: false,
+          headerShown: false, // يتم الاعتماد على هيدر الـ Drawer الأساسي
           title: 'لوحة التحكم',
-        }} 
-      />
-
-      {/* شاشة احتياطية بنفس المكون لضمان عدم حدوث خطأ إذا تم استدعاء DoctorHome */}
-      <Stack.Screen 
-        name="DoctorHome" 
-        component={DoctorDashboardScreen} 
-        options={{ 
-          headerShown: false,
         }} 
       />
 
@@ -85,7 +74,7 @@ const DoctorStack = () => {
         }} 
       />
 
-      {/* 3️⃣ شاشة عرض جدول المواعيد (الجدول الاحترافي) */}
+      {/* 3️⃣ شاشة عرض جدول المواعيد */}
       <Stack.Screen 
         name="MySchedule" 
         component={MyScheduleScreen} 

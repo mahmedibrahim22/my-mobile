@@ -38,17 +38,19 @@ const Stack = createStackNavigator<RootStackParamList>();
 const AppNavigator = () => {
   const { token, loading, role } = useSelector((state: any) => state.user);
   
-  // الوصول لبيانات الطبيب لمعرفة حالة السداد
+  // الوصول لبيانات الطبيب لمعرفة حالة السداد من خلال الـ Context
   const doctorCtx = useContext(DoctorContext);
-  const profileData = doctorCtx?.profileData;
-  const fees = profileData?.fees || 0;
-  const hasFees = fees > 0;
+  
+  // منطق التحقق: إذا كانت مديونية الطبيب أكبر من صفر أو الحساب معلق
+  const totalFees = doctorCtx?.dashData?.totalFeesToAwn || 0;
+  const isSuspended = doctorCtx?.dashData?.isSuspended || false;
+  const hasDebt = totalFees > 0 || isSuspended;
 
   // 📝 تسجيل حالة التنقل في الكونسول لكشف أي تعارض
   console.log("--- AppNavigator Trace ---");
   console.log("Current User Role:", role);
   console.log("Authentication Token:", !!token);
-  console.log("Doctor Fees Status:", fees);
+  console.log("Doctor Debt Status:", totalFees);
 
   /**
    * 1️⃣ مرحلة التحميل (Spinner)
@@ -63,11 +65,9 @@ const AppNavigator = () => {
 
   return (
     <Stack.Navigator 
-      // تحديد شاشة البداية بذكاء بناءً على التوكن والدور والديون
-      initialRouteName={
-        !token ? "AuthStack" : 
-        (role === 'doctor' && hasFees) ? "DoctorStack" : "MainDrawer"
-      }
+      // ✅ التعديل الجوهري: طالما فيه توكن، البداية دائماً من MainDrawer 
+      // عشان السايد بار والناف بار يفضلوا شغالين للدكتور والأدمن والمستخدم
+      initialRouteName={!token ? "AuthStack" : "MainDrawer"}
       screenOptions={{ 
         headerShown: false,
         gestureEnabled: true,
@@ -87,9 +87,13 @@ const AppNavigator = () => {
         />
       ) : (
         <>
-          {/* ✅ تم دمج شاشات الـ Stacks هنا لمنع تكرار الأسماء Duplicate Screen Error */}
+          {/* ✅ المسار الرئيسي الموحد (Drawer) */}
+          <Stack.Screen 
+            name="MainDrawer" 
+            component={DrawerNavigator} 
+          />
 
-          {/* 1. مسار الطبيب: يتم توجيهه إليه في البداية إذا كان عليه مديونية */}
+          {/* 1. مسار الطبيب (للاستخدام عند الحاجة للتوجيه المباشر) */}
           <Stack.Screen 
             name="DoctorStack" 
             component={DoctorStack}
@@ -98,19 +102,13 @@ const AppNavigator = () => {
             }}
           />
 
-          {/* 2. مسار الأدمن */}
+          {/* 2. مسار الأدمن (للاستخدام عند الحاجة للتوجيه المباشر) */}
           <Stack.Screen 
             name="AdminStack" 
             component={AdminStack} 
             listeners={{
               focus: () => console.log("Navigation Success: AdminStack is now active")
             }}
-          />
-
-          {/* 3. المسار الرئيسي للمستخدم (Drawer) */}
-          <Stack.Screen 
-            name="MainDrawer" 
-            component={DrawerNavigator} 
           />
 
           {/* 📁 شاشات المحتوى المشتركة */}

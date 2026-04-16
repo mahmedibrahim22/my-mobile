@@ -8,7 +8,7 @@ import {
 } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
-import { useNavigation, CommonActions } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 
 // ✅ استيراد الـ Types والـ Actions
 import { AppDispatch } from '../store/index';
@@ -132,21 +132,18 @@ const DrawerNavigator = () => {
 
   const token = role === 'doctor' ? doctorCtx?.dToken : role === 'admin' ? adminCtx?.aToken : context?.token;
 
-  // ✅ تصحيح التوجيه ليتوافق مع أسماء الشاشات الفعلية داخل الـ Stacks
+  // ✅ التعديل الجوهري: استخدام الأسماء المطلوبة لضمان البقاء داخل الـ Drawer
   const handleHomePress = () => {
     if (role === 'admin') {
-      navigation.navigate('AdminHome', { screen: 'AdminDashboard' });
+      navigation.navigate('AdminSection');
     } else if (role === 'doctor') {
-      // توجيه الطبيب لاسم الـ Stack وبداخله شاشة الداشبورد الموحدة
-      navigation.navigate('DoctorHome', { screen: 'DoctorDashboard' });
+      navigation.navigate('DoctorSection');
     } else {
-      navigation.navigate('UserHome', { screen: 'Home' });
+      navigation.navigate('UserHome');
     }
   };
 
   type IconProps = { color: string; size: number };
-
-  const HeaderComponent = CustomHeader as any;
 
   return (
     <Drawer.Navigator
@@ -155,7 +152,7 @@ const DrawerNavigator = () => {
         drawerPosition: 'right', 
         headerShown: true,
         header: () => (
-            <HeaderComponent 
+            <CustomHeader 
                 darkMode={isDarkMode} 
                 setDarkMode={toggleTheme} 
                 onHomePress={handleHomePress}
@@ -175,12 +172,6 @@ const DrawerNavigator = () => {
           backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
           width: 280,
         },
-        headerStyle: {
-          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-          elevation: 0,
-          shadowOpacity: 0,
-          borderBottomWidth: 0,
-        },
         headerTitle: "", 
       }}
     >
@@ -188,82 +179,11 @@ const DrawerNavigator = () => {
       {token && role === 'admin' ? (
         <>
           <Drawer.Screen 
-            name="AdminHome" 
+            name="AdminSection" 
             component={AdminStack} 
             options={{ 
               drawerLabel: 'الرئيسية',
               drawerIcon: ({ color }: IconProps) => <Ionicons name="home-outline" size={20} color={color} />
-            }}
-          />
-          <Drawer.Screen 
-            name="AdminSection" 
-            component={AdminStack} 
-            options={{ 
-              drawerLabel: 'لوحة التحكم',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="grid-outline" size={20} color={color} />
-            }}
-          />
-          <Drawer.Screen 
-            name="AddDoctorDrawer" 
-            component={AdminStack} 
-            initialParams={{ screen: 'AddDoctor' }}
-            options={{ 
-              drawerLabel: 'إضافة طبيب جديد',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="person-add-outline" size={20} color={color} />
-            }}
-          />
-          <Drawer.Screen 
-            name="DoctorListDrawer" 
-            component={AdminStack} 
-            initialParams={{ screen: 'DoctorListInternal' }}
-            options={{ 
-              drawerLabel: 'قائمة الأطباء',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="people-outline" size={20} color={color} />
-            }}
-          />
-          <Drawer.Screen 
-            name="AppointmentsDrawer" 
-            component={AdminStack} 
-            initialParams={{ screen: 'AppointmentsInternal' }}
-            options={{ 
-              drawerLabel: 'سجل المواعيد',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="calendar-outline" size={20} color={color} />
-            }}
-          />
-          <Drawer.Screen 
-            name="LabsDrawer" 
-            component={AdminStack} 
-            initialParams={{ screen: 'LabsInternal' }}
-            options={{ 
-              drawerLabel: 'إدارة المعامل',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="flask-outline" size={20} color={color} />
-            }}
-          />
-          <Drawer.Screen 
-            name="PharmacyDrawer" 
-            component={AdminStack} 
-            initialParams={{ screen: 'PharmaciesInternal' }}
-            options={{ 
-              drawerLabel: 'إدارة الصيدليات',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="medical-outline" size={20} color={color} />
-            }}
-          />
-          <Drawer.Screen 
-            name="DeliveryDrawer" 
-            component={AdminStack} 
-            initialParams={{ screen: 'DeliveryInternal' }}
-            options={{ 
-              drawerLabel: 'طلبات التوصيل',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="bicycle-outline" size={20} color={color} />
-            }}
-          />
-          <Drawer.Screen 
-            name="UserSectionPreview" 
-            component={UserStack} 
-            options={{ 
-              drawerLabel: 'عرض كـ مستخدم',
-              headerShown: true, 
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="eye-outline" size={20} color={color} />
             }}
           />
         </>
@@ -273,20 +193,12 @@ const DrawerNavigator = () => {
       : token && role === 'doctor' ? (
         <>
           <Drawer.Screen 
-            name="DoctorHome" 
-            component={DoctorStack} 
-            options={{ 
-              drawerLabel: 'الرئيسية',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="home-outline" size={20} color={color} />
-            }}
-          />
-          <Drawer.Screen 
-            name="DoctorDashboardDrawer" 
+            name="DoctorSection" 
             component={DoctorStack} 
             initialParams={{ screen: 'DoctorDashboard' }}
             options={{ 
-              drawerLabel: 'لوحة التحكم',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="grid-outline" size={20} color={color} />
+              drawerLabel: 'الرئيسية',
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="home-outline" size={20} color={color} />
             }}
           />
           <Drawer.Screen 
@@ -362,75 +274,18 @@ const DrawerNavigator = () => {
 };
 
 const styles = StyleSheet.create({
-  drawerHeader: {
-    padding: 24,
-    borderBottomWidth: 1,
-    marginBottom: 10,
-    alignItems: 'flex-end'
-  },
-  drawerBrand: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#2dd4bf',
-    letterSpacing: 1
-  },
-  roleBadge: {
-    backgroundColor: 'rgba(45, 212, 191, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 5,
-    marginTop: 4
-  },
-  drawerUserRole: {
-    fontSize: 10,
-    color: '#2dd4bf',
-    fontWeight: '900',
-    textTransform: 'uppercase'
-  },
-  userInfoContainer: {
-    marginTop: 15,
-    alignItems: 'flex-end'
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  userEmail: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2
-  },
-  menuLabelContainer: {
-    paddingHorizontal: 25,
-    marginVertical: 10,
-  },
-  menuLabel: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 1.5
-  },
-  divider: {
-    height: 1,
-    marginHorizontal: 25,
-    marginBottom: 15,
-    opacity: 0.3
-  },
-  logoutButton: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    padding: 20,
-    borderTopWidth: 1,
-    marginBottom: Platform.OS === 'ios' ? 30 : 10,
-  },
-  logoutText: {
-    color: '#f87171',
-    fontSize: 14,
-    fontWeight: '900',
-    marginRight: 12,
-    textTransform: 'uppercase'
-  }
+  drawerHeader: { padding: 24, borderBottomWidth: 1, marginBottom: 10, alignItems: 'flex-end' },
+  drawerBrand: { fontSize: 28, fontWeight: '900', color: '#2dd4bf', letterSpacing: 1 },
+  roleBadge: { backgroundColor: 'rgba(45, 212, 191, 0.1)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 5, marginTop: 4 },
+  drawerUserRole: { fontSize: 10, color: '#2dd4bf', fontWeight: '900', textTransform: 'uppercase' },
+  userInfoContainer: { marginTop: 15, alignItems: 'flex-end' },
+  userName: { fontSize: 16, fontWeight: '700' },
+  userEmail: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  menuLabelContainer: { paddingHorizontal: 25, marginVertical: 10 },
+  menuLabel: { fontSize: 10, fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: 1.5 },
+  divider: { height: 1, marginHorizontal: 25, marginBottom: 15, opacity: 0.3 },
+  logoutButton: { flexDirection: 'row-reverse', alignItems: 'center', padding: 20, borderTopWidth: 1, marginBottom: Platform.OS === 'ios' ? 30 : 10 },
+  logoutText: { color: '#f87171', fontSize: 14, fontWeight: '900', marginRight: 12, textTransform: 'uppercase' }
 });
 
 export default DrawerNavigator;
