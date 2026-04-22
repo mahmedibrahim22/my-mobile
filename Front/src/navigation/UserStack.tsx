@@ -37,14 +37,18 @@ export type UserStackParamList = {
   Contact: undefined;
   About: undefined;
   NotFound: undefined;
+  UserSection: { screen: string }; // ✅ إضافة تعريف للمدخل القادم من الدروير
 };
 
 const Stack = createStackNavigator<UserStackParamList>();
 
-const UserStack = () => {
+const UserStack = ({ route }: any) => {
+  // 🧭 تحديد الشاشة الابتدائية بناءً على المدخل القادم من الـ Drawer
+  const initialRoute = route.params?.screen === 'MyAppointments' ? 'MyAppointments' : 'Home';
+
   return (
     <Stack.Navigator
-      initialRouteName="Home"
+      initialRouteName={initialRoute}
       screenOptions={{
         // 🛠️ الهيدر يتم التحكم فيه يدوياً داخل الشاشات (مثل AppointmentScreen)
         headerShown: false,

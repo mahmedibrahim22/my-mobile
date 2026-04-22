@@ -333,9 +333,10 @@ const DrawerNavigator = () => {
           <Drawer.Screen 
             name="UserSection" 
             component={UserStack} 
+            initialParams={{ screen: 'MyAppointments' }} // 👈 التوجيه لصفحة المواعيد عند الضغط
             options={{ 
-              drawerLabel: 'استكشاف الخدمات',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="apps-outline" size={20} color={color} />
+              drawerLabel: 'مواعيدي', // 👈 تم تغيير المسمى
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="calendar-outline" size={20} color={color} /> // 👈 تغيير الأيقونة لتناسب المواعيد
             }}
           />
         </>

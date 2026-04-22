@@ -15,10 +15,10 @@ interface AppointmentProps {
     status: 'Upcoming' | 'Completed' | 'Cancelled' | 'PendingCancellation';
     isDarkMode?: boolean;
     isDoctorView?: boolean; // هل العرض في شاشة الدكتور؟
-    onCancel?: () => Promise<void> | void; // للمريض أو الأدمن
+    onCancel?: () => Promise<void> | void; // للمريض: لطلب الإلغاء
     onComplete?: () => Promise<void> | void; // للدكتور: إتمام الكشف
-    onAcceptCancel?: () => Promise<void> | void; // للدكتور: قبول الإلغاء
-    onRejectCancel?: () => Promise<void> | void; // للدكتور: رفض الإلغاء
+    onAcceptCancel?: () => Promise<void> | void; // للدكتور: قبول الإلغاء (حذف نهائي)
+    onRejectCancel?: () => Promise<void> | void; // للدكتور: رفض الإلغاء (تثبيت الموعد)
 }
 
 const AppointmentCard: React.FC<AppointmentProps> = ({ 
@@ -105,7 +105,7 @@ const AppointmentCard: React.FC<AppointmentProps> = ({
                 </View>
                 
                 <View style={styles.actionsContainer}>
-                    {/* واجهة المريض: زر إلغاء عادي */}
+                    {/* واجهة المريض: يظهر زر "إلغاء الموعد" فقط إذا كان الموعد قادماً ولم يطلب الإلغاء بعد */}
                     {!isDoctorView && status === 'Upcoming' && (
                         <TouchableOpacity 
                             onPress={() => handleAction('cancel', onCancel)} 
@@ -116,7 +116,14 @@ const AppointmentCard: React.FC<AppointmentProps> = ({
                         </TouchableOpacity>
                     )}
 
-                    {/* واجهة الدكتور: أزرار التحكم في الحالات */}
+                    {/* تنبيه للمريض عند إرسال طلب الإلغاء */}
+                    {!isDoctorView && status === 'PendingCancellation' && (
+                        <View style={styles.pendingBadge}>
+                            <Text style={styles.pendingText}>في انتظار رد الطبيب</Text>
+                        </View>
+                    )}
+
+                    {/* واجهة الدكتور: أزرار التحكم */}
                     {isDoctorView && status === 'Upcoming' && (
                         <TouchableOpacity 
                             onPress={() => handleAction('complete', onComplete)} 
@@ -126,12 +133,21 @@ const AppointmentCard: React.FC<AppointmentProps> = ({
                         </TouchableOpacity>
                     )}
 
+                    {/* واجهة الدكتور عند وجود طلب إلغاء من المريض */}
                     {isDoctorView && status === 'PendingCancellation' && (
                         <View style={styles.row}>
-                            <TouchableOpacity onPress={() => handleAction('reject', onRejectCancel)} style={styles.rejectBtn}>
+                            <TouchableOpacity 
+                                onPress={() => handleAction('reject', onRejectCancel)} 
+                                style={styles.rejectBtn}
+                                disabled={!!loadingAction}
+                            >
                                 {loadingAction === 'reject' ? <ActivityIndicator size="small" color="#64748B" /> : <Text style={styles.rejectText}>رفض</Text>}
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleAction('accept', onAcceptCancel)} style={styles.acceptBtn}>
+                            <TouchableOpacity 
+                                onPress={() => handleAction('accept', onAcceptCancel)} 
+                                style={styles.acceptBtn}
+                                disabled={!!loadingAction}
+                            >
                                 {loadingAction === 'accept' ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.acceptText}>قبول الإلغاء</Text>}
                             </TouchableOpacity>
                         </View>
@@ -169,7 +185,9 @@ const styles = StyleSheet.create({
     acceptBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#EF4444', marginLeft: 8 },
     acceptText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
     rejectBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1' },
-    rejectText: { color: '#64748B', fontSize: 10, fontWeight: 'bold' }
+    rejectText: { color: '#64748B', fontSize: 10, fontWeight: 'bold' },
+    pendingBadge: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: 'rgba(217, 119, 6, 0.1)' },
+    pendingText: { color: '#D97706', fontSize: 10, fontWeight: '700' }
 });
 
 export default memo(AppointmentCard);

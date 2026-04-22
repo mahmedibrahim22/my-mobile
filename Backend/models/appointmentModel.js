@@ -46,7 +46,8 @@ const appointmentSchema = new mongoose.Schema({
     
     // ✅ الملفات المرفقة (رابط الصورة المرفوعة على Cloudinary)
     // يظهر للطبيب في لوحة التحكم للاطلاع على التحاليل أو الأشعة قبل أو أثناء الكشف
-    illnessImage: { type: String, default: "" } 
+    illnessImage: { type: String, default: "" },
+    patientImage: { type: String, default: "" } // صورة المريض أو ملف إضافي (أشعة/تحاليل)
 });
 
 // منع تكرار إنشاء الموديل لضمان استقرار التطبيق أثناء التطوير (Hot Reloading safe)

@@ -67,7 +67,7 @@ const loginUser = async (req, res) => {
     }
 }
 
-// ✅ --- حجز موعد (تم التحديث لضمان مطابقة الجدولة الذكية) ---
+// ✅ --- حجز موعد (تم التحديث لضمان مطابقة الجدولة الذكية ورفع الصور) ---
 const bookAppointment = async (req, res) => {
     try {
         const { 
@@ -76,7 +76,8 @@ const bookAppointment = async (req, res) => {
             patientGender, illnessDescription 
         } = req.body
         
-        const imageFile = req.file 
+        // جلب الملفات المرفوعة (سواء صورة الحالة أو صورة المريض)
+        const files = req.files 
 
         const docData = await doctorModel.findById(docId).select("-password")
         if (!docData || !docData.available) {
@@ -143,11 +144,19 @@ const bookAppointment = async (req, res) => {
             slots_booked[slotDate] = [slotTime]
         }
 
-        // معالجة صورة الحالة المرضية
+        // معالجة الصور المرفوعة (صورة الحالة وصورة المريض)
         let illnessImageUrl = ""
-        if (imageFile) {
-            const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: "image" })
-            illnessImageUrl = imageUpload.secure_url
+        let patientImageUrl = ""
+
+        if (files) {
+            if (files.illnessImage) {
+                const upload = await cloudinary.uploader.upload(files.illnessImage[0].path, { resource_type: "image" })
+                illnessImageUrl = upload.secure_url
+            }
+            if (files.patientImage) {
+                const upload = await cloudinary.uploader.upload(files.patientImage[0].path, { resource_type: "image" })
+                patientImageUrl = upload.secure_url
+            }
         }
 
         const userData = await userModel.findById(userId).select("-password")
@@ -166,6 +175,7 @@ const bookAppointment = async (req, res) => {
             patientGender,
             illnessDescription,
             illnessImage: illnessImageUrl,
+            patientImage: patientImageUrl,
             date: Date.now()
         }
 

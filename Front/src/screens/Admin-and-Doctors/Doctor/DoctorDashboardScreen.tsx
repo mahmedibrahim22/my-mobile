@@ -52,7 +52,7 @@ const DoctorDashboard = () => {
     const doctorCtx = useContext(DoctorContext);
     const appCtx = useContext(AppContext);
     const navigation = useNavigation<any>();
-    const dispatch = useDispatch(); // ✅
+    const dispatch = useDispatch(); 
     
     const isDarkMode = appCtx?.isDarkMode ?? true;
 
@@ -82,7 +82,7 @@ const DoctorDashboard = () => {
             });
             
             if (data.success) {
-                // ✅ تعديل المنطق: فلترة المواعيد لتظهر المكتملة فقط في الواجهة (أحدث المواعيد المنتهية)
+                // ✅ فلترة المواعيد لتظهر المكتملة فقط
                 const processedDashData = { ...data.dashData };
                 if (processedDashData.latestAppointments) {
                     processedDashData.latestAppointments = processedDashData.latestAppointments
@@ -92,13 +92,15 @@ const DoctorDashboard = () => {
 
                 setDashData(processedDashData);
                 
-                // ✅ تحديث الريدكس فوراً لضمان تزامن السايد بار والقيود
+                // ✅ تحديث الريدكس فوراً
                 dispatch(updateDoctorFinancials({
                     totalFeesToAwn: data.dashData.totalFeesToAwn,
                     isSuspended: data.dashData.isSuspended,
                     paymentStatus: data.dashData.paymentStatus
                 }));
 
+                // ✅ تم إزالة استدعاء doctorCtx هنا لمنع الـ Loop إذا كان يسبب ريندر إضافي غير متحكم به
+                // والاكتفاء بالتحديث المحلي والريدكس
                 if (doctorCtx?.setDashData) {
                     doctorCtx.setDashData(processedDashData);
                 }
@@ -109,10 +111,12 @@ const DoctorDashboard = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [dToken, dispatch, doctorCtx]);
+    }, [dToken, dispatch]); // 🛠️ تم إزالة doctorCtx من هنا لمنع الـ Infinite Loop
 
     useEffect(() => {
-        if (dToken) getDashData();
+        if (dToken) {
+            getDashData();
+        }
     }, [dToken, getDashData]);
 
     const onRefresh = () => {
@@ -138,7 +142,7 @@ const DoctorDashboard = () => {
                             );
                             if (data.success) {
                                 Alert.alert('عَوْن', data.message);
-                                getDashData(); // تحديث المديونية فوراً بعد كل كشف
+                                getDashData(); 
                             }
                         } catch { 
                             Alert.alert('خطأ', 'فشل في تحديث الحالة'); 
@@ -157,7 +161,6 @@ const DoctorDashboard = () => {
         } catch { return slotDate; }
     };
 
-    // ✅ التنبيه يعتمد على مديونية حقيقية أو حالة إيقاف من السيرفر
     const showDebtNotice = (dashData?.totalFeesToAwn ?? 0) > 0 || dashData?.isSuspended;
 
     if (loading && !dashData) return (
@@ -233,8 +236,6 @@ const DoctorDashboard = () => {
                     <View style={styles.emptyState}><Text style={[styles.emptyText, { color: theme.textSub }]}>لا توجد مواعيد مكتملة حالياً</Text></View>
                 ) : (
                     dashData.latestAppointments.map((item, index) => {
-                        // ✅ التغبيش يطبق فقط لو الحساب موقوف أو مش هو الدور التالي للحجوزات "غير المكتملة"
-                        // في حالتنا هنا، نعرض المكتمل فقط، لذا الـ Blur لن يظهر للمكتمل إلا لو أردت قفل السجل بالكامل.
                         const isNotNext = dashData.nextAppointmentId !== null && item._id !== dashData.nextAppointmentId;
                         const isBlurred = (dashData.isSuspended || isNotNext) && !item.isCompleted && !item.cancelled;
                         
@@ -285,14 +286,6 @@ const DoctorDashboard = () => {
                                         <Text style={[styles.blurText, { color: theme.textMain }]}>
                                             {dashData.isSuspended ? "يجب سداد مديونية عون أولاً" : "أنهِ الكشف السابق لرؤية بيانات المريض التالي"}
                                         </Text>
-                                        {dashData.isSuspended && (
-                                            <TouchableOpacity 
-                                                onPress={() => navigation.navigate('SettleFeesDrawer')}
-                                                style={{ marginTop: 10, borderBottomWidth: 1, borderBottomColor: theme.accent }}
-                                            >
-                                                <Text style={{ color: theme.accent, fontSize: 12, fontWeight: '900' }}>انتقل لصفحة السداد</Text>
-                                            </TouchableOpacity>
-                                        )}
                                     </View>
                                 )}
                             </View>

@@ -253,11 +253,9 @@ const AppointmentScreen = () => {
       });
 
       if (data.success) {
-        // ✅ تفعيل إشعار النجاح في الهوم
         if(setBookingSuccess) {
            setBookingSuccess(true);
         }
-        // ✅ تعديل اسم الشاشة لـ 'Home' ليتطابق مع App.tsx ويحل مشكلة الـ ERROR
         navigation.reset({
           index: 0,
           routes: [{ name: 'Home' }],
@@ -282,7 +280,6 @@ const AppointmentScreen = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]}>
       
-      {/* Custom Alert Modal */}
       <Modal visible={alertVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <MotiView from={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={[styles.alertBox, { backgroundColor: cardColor }]}>
@@ -473,7 +470,6 @@ const styles = StyleSheet.create({
   uploadText: { color: '#2dd4bf', fontSize: 14, fontWeight: '700' },
   submitBtn: { backgroundColor: '#2dd4bf', padding: 22, borderRadius: 22, flexDirection: 'row-reverse', justifyContent: 'center', alignItems: 'center', gap: 12, marginBottom: 50, elevation: 5 },
   submitBtnText: { color: '#0F172A', fontSize: 18, fontWeight: '800' },
-  // Modal Styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
   alertBox: { width: width * 0.85, borderRadius: 30, padding: 30, alignItems: 'center', elevation: 10 },
   alertText: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 25, lineHeight: 26 },
