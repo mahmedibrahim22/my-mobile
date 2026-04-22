@@ -6,52 +6,57 @@ const appointmentSchema = new mongoose.Schema({
     docId: { type: String, required: true },
     
     // --- بيانات الموعد الزمانية ---
-    // slotDate: يتم تخزينه بصيغة DD_MM_YYYY لتسهيل الفلترة والتحقق من الإجازات
+    // slotDate: يتم تخزينه بصيغة DD_MM_YYYY
     slotDate: { type: String, required: true }, 
-    // slotTime: الوقت المختار بناءً على تقسيم الـ duration (مثلاً 06:20 PM)
+    // slotTime: الوقت المختار (مثلاً 06:20 PM)
     slotTime: { type: String, required: true }, 
     
     // --- بيانات مرجعية (Snapshot) لضمان ثبات السجل التاريخي ---
-    // تخزين بيانات الطبيب والمستخدم وقت الحجز يحمي السجل من التغير في حال تم تعديل البروفايلات لاحقاً
     userData: { type: Object, required: true },
     docData: { type: Object, required: true },
     
-    // --- البيانات المالية وحالة الموعد ---
+    // --- البيانات المالية وحالة الموعد الأساسية ---
     amount: { type: Number, required: true },
-    date: { type: Number, required: true }, // Timestamp وقت إجراء عملية الحجز الفعلية
-    cancelled: { type: Boolean, default: false }, // هل الموعد ملغي نهائياً؟
-    payment: { type: Boolean, default: false }, // هل تم الدفع؟
-    isCompleted: { type: Boolean, default: false }, // هل انتهى الكشف بنجاح؟ (الزرار الإلزامي للدكتور)
-    
-    // 🛡️ نظام إدارة الإلغاء الجديد (بموافقة الطبيب)
-    // تم إضافة هذه الحقول لتمكين منطق طلب الإلغاء بدلاً من الإلغاء الفوري
-    cancellationRequest: { type: Boolean, default: false }, // هل قدم المريض طلب إلغاء؟
+    date: { type: Number, required: true }, // Timestamp وقت إجراء عملية الحجز
+    cancelled: { type: Boolean, default: false }, 
+    payment: { type: Boolean, default: false }, 
+    isCompleted: { type: Boolean, default: false }, // الزرار الإلزامي للدكتور لفك الـ Blur عن التالي
+
+    // 🟢 نظام إدارة طلب الحجز (Logic الجديد)
+    // الحالات: Pending (انتظار)، Accepted (مقبول)، Rejected (مرفوض)
+    status: { 
+        type: String, 
+        enum: ["Pending", "Accepted", "Rejected", "Completed"], 
+        default: "Pending" 
+    },
+    // حقل لتخزين عنوان العيادة وقت قبول الطلب ليظهر للمريض كإشعار ثابت
+    doctorAddress: { type: String, default: "" },
+
+    // 🛡️ نظام إدارة الإلغاء (بموافقة الطبيب)
+    cancellationRequest: { type: Boolean, default: false }, 
     cancellationStatus: { 
         type: String, 
         enum: ["none", "pending", "accepted", "rejected"], 
         default: "none" 
-    }, // حالة طلب الإلغاء: (لا يوجد، معلق، مقبول، مرفوض)
+    },
 
     // 🕒 نظام تتابع المواعيد (الـ Blur)
-    isNext: { type: Boolean, default: false }, // هل هذا هو الموعد التالي الذي يجب أن يظهر بدون Blur؟
-    doctorAction: { type: Boolean, default: false }, // هل ضغط الدكتور "صح" أو "خطأ" لبدء التعامل مع الحجز؟
+    isNext: { type: Boolean, default: false }, 
+    doctorAction: { type: Boolean, default: false }, 
 
-    // ✅ بيانات المريض (التي يدخلها المستخدم يدوياً لكل حجز)
-    // تدعم حجز المستخدم لنفسه أو لغيره من أفراد العائلة
+    // ✅ بيانات المريض (يدخلها المستخدم يدوياً)
     patientName: { type: String, required: true }, 
     patientPhone: { type: String, required: true },
     patientAge: { type: String, required: true },
     patientGender: { type: String, required: true },
-    illnessDescription: { type: String, default: "" }, // وصف الحالة المرضية
+    illnessDescription: { type: String, default: "" }, 
     
-    // ✅ الملفات المرفقة (رابط الصورة المرفوعة على Cloudinary)
-    // يظهر للطبيب في لوحة التحكم للاطلاع على التحاليل أو الأشعة قبل أو أثناء الكشف
+    // ✅ الملفات المرفقة (Cloudinary links)
     illnessImage: { type: String, default: "" },
-    patientImage: { type: String, default: "" } // صورة المريض أو ملف إضافي (أشعة/تحاليل)
+    patientImage: { type: String, default: "" }
 });
 
-// منع تكرار إنشاء الموديل لضمان استقرار التطبيق أثناء التطوير (Hot Reloading safe)
-// يتحقق أولاً إذا كان الموديل موجوداً في mongoose.models لتجنب أخطاء إعادة التعريف
+// منع تكرار إنشاء الموديل لضمان استقرار التطبيق
 const appointmentModel = mongoose.models.appointment || mongoose.model("appointment", appointmentSchema);
 
 export default appointmentModel;

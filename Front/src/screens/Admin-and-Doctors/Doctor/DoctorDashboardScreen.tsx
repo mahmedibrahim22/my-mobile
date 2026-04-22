@@ -34,6 +34,7 @@ interface LatestAppointment {
     illnessDescription: string;
     cancelled: boolean;
     isCompleted: boolean;
+    status: 'Pending' | 'Accepted' | 'Rejected' | 'Completed'; // الحالة الجديدة
     cancellationRequest: boolean; 
     cancellationStatus: 'pending' | 'accepted' | 'rejected' | 'none';
     amount?: number;
@@ -86,10 +87,8 @@ const DoctorDashboard = () => {
             if (data.success) {
                 const processedDashData = { ...data.dashData };
                 if (processedDashData.latestAppointments) {
-                    // ✅ الفلترة: تعرض المكتملة أو التي بها طلب إلغاء نشط ليتمكن الدكتور من اتخاذ قرار
-                    processedDashData.latestAppointments = processedDashData.latestAppointments
-                        .filter((app: LatestAppointment) => app.isCompleted === true || app.cancellationRequest === true)
-                        .reverse();
+                    // عكس الترتيب لعرض الأحدث أو حسب منطق الطابور
+                    processedDashData.latestAppointments = [...processedDashData.latestAppointments].reverse();
                 }
 
                 setDashData(processedDashData);
@@ -123,17 +122,38 @@ const DoctorDashboard = () => {
         getDashData();
     };
 
-    // ✅ دالة قبول أو رفض طلب الإلغاء
-    const handleCancellationAction = async (id: string, action: 'accepted' | 'rejected') => {
-        const confirmMsg = action === 'accepted' ? 'هل أنت موافق على قبول إلغاء هذا الحجز؟' : 'هل تريد رفض طلب الإلغاء؟';
-        Alert.alert('تأكيد الإجراء', confirmMsg, [
+    // دالة تحديث الحالة (قبول / رفض / إتمام)
+    const handleStatusAction = async (id: string, action: 'approve' | 'reject' | 'complete') => {
+        let title = '';
+        let msg = '';
+        let endpoint = '';
+
+        switch (action) {
+            case 'approve':
+                title = 'قبول الحجز';
+                msg = 'هل تريد قبول هذا الموعد وإرسال عنوان العيادة للمريض؟';
+                endpoint = '/doctor/approve-appointment';
+                break;
+            case 'reject':
+                title = 'رفض الحجز';
+                msg = 'هل أنت متأكد من رفض هذا الطلب؟';
+                endpoint = '/doctor/reject-appointment';
+                break;
+            case 'complete':
+                title = 'إتمام الكشف';
+                msg = 'هل انتهى المريض من الكشف؟ سيتم فتح الموعد التالي تلقائياً.';
+                endpoint = '/doctor/complete-appointment';
+                break;
+        }
+
+        Alert.alert(title, msg, [
             { text: 'تراجع', style: 'cancel' },
             {
                 text: 'تأكيد',
                 onPress: async () => {
                     try {
-                        const { data } = await axiosInstance.post('/doctor/appointment-cancel', 
-                            { appointmentId: id, action }, 
+                        const { data } = await axiosInstance.post(endpoint, 
+                            { appointmentId: id }, 
                             { headers: { [CONFIG.HEADERS.DOCTOR_TOKEN]: dToken } }
                         );
                         if (data.success) {
@@ -141,41 +161,11 @@ const DoctorDashboard = () => {
                             getDashData();
                         }
                     } catch {
-                        Alert.alert('خطأ', 'فشل تنفيذ الإجراء');
+                        Alert.alert('خطأ', 'فشل في تحديث حالة الموعد');
                     }
                 }
             }
         ]);
-    };
-
-    const handleStatusUpdate = (id: string, action: 'cancel' | 'complete') => {
-        const isCancel = action === 'cancel';
-        Alert.alert(
-            isCancel ? 'إلغاء الموعد؟' : 'إتمام الكشف بنجاح',
-            isCancel ? 'هل تريد إلغاء هذا الحجز نهائياً؟' : 'تأكيد إتمام الكشف للانتقال للحجز التالي.',
-            [
-                { text: 'تراجع', style: 'cancel' },
-                { 
-                    text: isCancel ? 'إلغاء' : 'تم الكشف', 
-                    onPress: async () => {
-                        try {
-                            const endpoint = isCancel ? '/doctor/appointment-cancel' : '/doctor/complete-appointment';
-                            // عند الإلغاء اليدوي من الدكتور، نعتبرها 'accepted' مباشرة
-                            const payload = isCancel ? { appointmentId: id, action: 'accepted' } : { appointmentId: id };
-                            const { data } = await axiosInstance.post(endpoint, payload, 
-                                { headers: { [CONFIG.HEADERS.DOCTOR_TOKEN]: dToken } }
-                            );
-                            if (data.success) {
-                                Alert.alert('عَوْن', data.message);
-                                getDashData(); 
-                            }
-                        } catch { 
-                            Alert.alert('خطأ', 'فشل في تحديث الحالة'); 
-                        }
-                    }
-                }
-            ]
-        );
     };
 
     const slotDateFormat = (slotDate: string) => {
@@ -230,15 +220,18 @@ const DoctorDashboard = () => {
 
                 <View style={styles.sectionHeader}>
                     <TouchableOpacity onPress={getDashData}><Text style={[styles.refreshBtn, { color: theme.accent }]}>تحديث القائمة</Text></TouchableOpacity>
-                    <Text style={[styles.sectionTitle, { color: theme.textMain }]}>المواعيد الجارية والمكتملة</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.textMain }]}>قائمة المواعيد</Text>
                 </View>
 
                 {!dashData || dashData.latestAppointments.length === 0 ? (
-                    <View style={styles.emptyState}><Text style={[styles.emptyText, { color: theme.textSub }]}>لا توجد مواعيد نشطة حالياً</Text></View>
+                    <View style={styles.emptyState}><Text style={[styles.emptyText, { color: theme.textSub }]}>لا توجد مواعيد حالياً</Text></View>
                 ) : (
                     dashData.latestAppointments.map((item, index) => {
-                        const isNotNext = dashData.nextAppointmentId !== null && item._id !== dashData.nextAppointmentId;
-                        const isBlurred = (dashData.isSuspended || isNotNext) && !item.isCompleted && !item.cancelled;
+                        // منطق الـ Blur: الموعد الحالي (index) يتم قفله إذا كان الموعد السابق (index-1) لم يكتمل بعد
+                        const previousApp = index > 0 ? dashData.latestAppointments[index - 1] : null;
+                        const isLockedBySequence = previousApp ? (previousApp.status !== 'Completed' && !previousApp.cancelled) : false;
+                        
+                        const isBlurred = (dashData.isSuspended || isLockedBySequence) && item.status !== 'Completed' && !item.cancelled;
                         
                         return (
                             <View key={item._id || index} style={[styles.appointmentCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -250,27 +243,21 @@ const DoctorDashboard = () => {
                                     </View>
                                     
                                     <View style={styles.actionArea}>
-                                        {item.cancelled ? (
+                                        {item.cancelled || item.status === 'Rejected' ? (
                                             <Text style={[styles.statusTag, { color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>ملغي</Text>
-                                        ) : item.isCompleted ? (
+                                        ) : item.status === 'Completed' || item.isCompleted ? (
                                             <Text style={[styles.statusTag, { color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>مكتمل</Text>
-                                        ) : item.cancellationRequest ? (
-                                            // ✅ حالة طلب الإلغاء: يظهر زر قبول (صح) وزر رفض (خطأ)
-                                            <View style={styles.btnRow}>
-                                                <TouchableOpacity onPress={() => handleCancellationAction(item._id, 'rejected')} style={[styles.iconBtn, { borderColor: '#ef4444' }]}>
-                                                    <Ionicons name="close-circle" size={20} color="#ef4444" />
-                                                </TouchableOpacity>
-                                                <TouchableOpacity onPress={() => handleCancellationAction(item._id, 'accepted')} style={[styles.iconBtn, { borderColor: '#10b981' }]}>
-                                                    <Ionicons name="checkmark-circle" size={20} color="#10b981" />
-                                                </TouchableOpacity>
-                                            </View>
+                                        ) : item.status === 'Accepted' ? (
+                                            <TouchableOpacity onPress={() => handleStatusAction(item._id, 'complete')} style={[styles.iconBtn, { backgroundColor: theme.accent, borderColor: theme.accent }]}>
+                                                <Text style={{ fontSize: 10, color: '#000', fontWeight: 'bold' }}>إتمام الكشف</Text>
+                                            </TouchableOpacity>
                                         ) : (
                                             <View style={styles.btnRow}>
-                                                <TouchableOpacity onPress={() => handleStatusUpdate(item._id, 'cancel')} style={[styles.iconBtn, { backgroundColor: isDarkMode ? '#1e293b' : '#f8fafc', borderColor: theme.border }]}>
-                                                    <Text style={{ fontSize: 14 }}>❌</Text>
+                                                <TouchableOpacity onPress={() => handleStatusAction(item._id, 'reject')} style={[styles.iconBtn, { borderColor: '#ef4444' }]}>
+                                                    <Ionicons name="close-outline" size={20} color="#ef4444" />
                                                 </TouchableOpacity>
-                                                <TouchableOpacity onPress={() => handleStatusUpdate(item._id, 'complete')} style={[styles.iconBtn, { backgroundColor: isDarkMode ? '#1e293b' : '#f8fafc', borderColor: theme.border }]}>
-                                                    <Text style={{ fontSize: 14 }}>✅</Text>
+                                                <TouchableOpacity onPress={() => handleStatusAction(item._id, 'approve')} style={[styles.iconBtn, { borderColor: '#10b981' }]}>
+                                                    <Ionicons name="checkmark-outline" size={20} color="#10b981" />
                                                 </TouchableOpacity>
                                             </View>
                                         )}
@@ -279,7 +266,7 @@ const DoctorDashboard = () => {
                                 
                                 <View style={[styles.cardFooter, { borderTopColor: theme.border }]}>
                                     <Text style={[styles.illnessText, { color: theme.textSub }, isBlurred && styles.lightBlurEffect]} numberOfLines={1}>
-                                        {item.cancellationRequest ? '⚠️ المريض يطلب إلغاء الحجز' : (item.illnessDescription || 'لا يوجد وصف للحالة')}
+                                        {item.status === 'Pending' ? '⏳ في انتظار قرارك' : (item.illnessDescription || 'لا يوجد وصف للحالة')}
                                     </Text>
                                     <View style={[styles.ageBadge, { backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9' }]}>
                                         <Text style={[styles.ageText, { color: theme.textSub }]}>{item.patientAge} سنة</Text>
@@ -287,10 +274,10 @@ const DoctorDashboard = () => {
                                 </View>
 
                                 {isBlurred && (
-                                    <View style={[styles.blurOverlay, { backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.95)' }]}>
-                                        <Ionicons name="lock-closed" size={24} color={theme.accent} style={{ marginBottom: 8 }} />
+                                    <View style={[styles.blurOverlay, { backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.96)' }]}>
+                                        <Ionicons name="lock-closed" size={22} color={theme.accent} style={{ marginBottom: 6 }} />
                                         <Text style={[styles.blurText, { color: theme.textMain }]}>
-                                            {dashData.isSuspended ? "يجب سداد مديونية عون أولاً" : "أنهِ الكشف السابق لرؤية بيانات المريض التالي"}
+                                            {dashData.isSuspended ? "سدد المديونية لرؤية البيانات" : "أنهِ الموعد السابق لفتح هذا الموعد"}
                                         </Text>
                                     </View>
                                 )}
@@ -338,9 +325,9 @@ const styles = StyleSheet.create({
     patientDetails: { flex: 1, marginRight: 15, alignItems: 'flex-end' },
     patientName: { fontSize: 16, fontWeight: '900' },
     timeText: { fontSize: 11, fontWeight: '800', marginTop: 4 },
-    actionArea: { minWidth: 70, alignItems: 'center' },
+    actionArea: { minWidth: 85, alignItems: 'center' },
     btnRow: { flexDirection: 'row', gap: 8 },
-    iconBtn: { padding: 5, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+    iconBtn: { padding: 6, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
     statusTag: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10, fontSize: 10, fontWeight: '900', overflow: 'hidden' },
     cardFooter: { flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 15, paddingTop: 12, borderTopWidth: 1, alignItems: 'center' },
     illnessText: { fontSize: 11, flex: 1, textAlign: 'right', marginLeft: 15 },
@@ -354,7 +341,7 @@ const styles = StyleSheet.create({
         alignItems: 'center', 
         zIndex: 20,
     },
-    blurText: { fontSize: 12, fontWeight: '900', textAlign: 'center', paddingHorizontal: 20 },
+    blurText: { fontSize: 11, fontWeight: '900', textAlign: 'center', paddingHorizontal: 30, lineHeight: 18 },
     lightBlurEffect: {
         opacity: 0.1,
         ...(Platform.OS === 'ios' ? { filter: 'blur(10px)' } : {}),

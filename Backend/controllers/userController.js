@@ -15,7 +15,7 @@ const normalizeTime = (time) => {
         .trim()
         .toUpperCase()
         .replace(/\s+/g, '') // إزالة كافة المسافات
-        .replace(/^0/, '');   // إزالة الصفر الافتتاحي (مثل 09:00 تصبح 9:00)
+        .replace(/^0/, '');   // إزالة الصفر الافتتاحي
 };
 
 // --- تسجيل مستخدم جديد ---
@@ -67,7 +67,7 @@ const loginUser = async (req, res) => {
     }
 }
 
-// ✅ --- حجز موعد (تم التحديث لضمان مطابقة الجدولة الذكية ورفع الصور) ---
+// ✅ --- حجز موعد (تم التحديث ليدعم حالة Pending افتراضياً) ---
 const bookAppointment = async (req, res) => {
     try {
         const { 
@@ -76,78 +76,49 @@ const bookAppointment = async (req, res) => {
             patientGender, illnessDescription 
         } = req.body
         
-        // جلب الملفات المرفوعة (سواء صورة الحالة أو صورة المريض)
         const files = req.files 
-
         const docData = await doctorModel.findById(docId).select("-password")
         if (!docData || !docData.available) {
             return res.json({ success: false, message: "الطبيب غير متاح حالياً" })
         }
 
-        // --- تحويل التاريخ لجلب اسم اليوم بالعربي ---
         const daysArabic = ['الأحد', 'الأثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
         const dateParts = slotDate.split('_'); 
-        const day = parseInt(dateParts[0]);
-        const month = parseInt(dateParts[1]) - 1; 
-        const year = parseInt(dateParts[2]);
-        const dateObj = new Date(year, month, day);
+        const dateObj = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
         const dayName = daysArabic[dateObj.getDay()];
 
-        // 1️⃣ التحقق من الإجازات الرسمية المسجلة للطبيب
         if (docData.offDays && docData.offDays.includes(dayName)) {
             return res.json({ success: false, message: `عذراً، الدكتور في إجازة يوم ${dayName}` })
         }
 
-        // 2️⃣ فحص جدول الفترات (Slots)
         const cleanRequested = normalizeTime(slotTime);
-        const availableDays = docData.slots_available || {};
-        const slotsForThisDay = availableDays[dayName] || [];
+        const slotsForThisDay = docData.slots_available?.[dayName] || [];
 
         if (slotsForThisDay.length === 0) {
-            return res.json({ 
-                success: false, 
-                message: `لا توجد مواعيد متاحة مسجلة للطبيب في يوم ${dayName}`,
-            });
+            return res.json({ success: false, message: `لا توجد مواعيد متاحة يوم ${dayName}` });
         }
 
-        // التحقق من التوفر الفعلي (يدوي أو فترة مفتوحة) باستخدام normalizeTime
         const isInManualSlots = slotsForThisDay.some(slot => {
             const cleanDB = normalizeTime(slot);
-            
-            // دعم الكلمات الدلالية للفترات المفتوحة
-            if (cleanDB === "طوالاليوم" || cleanDB.includes("إلى") || cleanDB.includes("من") || cleanDB.includes("-")) {
-                return true;
-            }
-            
-            return cleanDB === cleanRequested;
+            return cleanDB === "طوالاليوم" || cleanDB.includes("-") || cleanDB === cleanRequested;
         });
 
         if (!isInManualSlots) {
-            return res.json({ 
-                success: false, 
-                message: `الموعد (${slotTime}) غير متاح في جدول يوم ${dayName}`,
-            })
+            return res.json({ success: false, message: "الموعد غير متاح في الجدول" })
         }
 
-        // 3️⃣ التحقق من الازدحام (bookedSlots)
         let slots_booked = docData.slots_booked || {}
         if (slots_booked[slotDate]) {
-            const isAlreadyBooked = slots_booked[slotDate].some(s => 
-                normalizeTime(s) === cleanRequested
-            );
-            
-            if (isAlreadyBooked) {
-                return res.json({ success: false, message: "هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر" })
+            if (slots_booked[slotDate].some(s => normalizeTime(s) === cleanRequested)) {
+                return res.json({ success: false, message: "هذا الموعد محجوز بالفعل" })
             }
             slots_booked[slotDate].push(slotTime)
         } else {
             slots_booked[slotDate] = [slotTime]
         }
 
-        // معالجة الصور المرفوعة (صورة الحالة وصورة المريض)
         let illnessImageUrl = ""
         let patientImageUrl = ""
-
         if (files) {
             if (files.illnessImage) {
                 const upload = await cloudinary.uploader.upload(files.illnessImage[0].path, { resource_type: "image" })
@@ -162,34 +133,83 @@ const bookAppointment = async (req, res) => {
         const userData = await userModel.findById(userId).select("-password")
 
         const appointmentData = {
-            userId,
-            docId,
-            userData,
-            docData,
+            userId, docId, userData, docData,
             amount: docData.fees,
-            slotTime,
-            slotDate,
-            patientName,
-            patientPhone,
-            patientAge,
-            patientGender,
+            slotTime, slotDate,
+            patientName, patientPhone, patientAge, patientGender,
             illnessDescription,
             illnessImage: illnessImageUrl,
             patientImage: patientImageUrl,
-            date: Date.now()
+            date: Date.now(),
+            status: "Pending" // الموعد يبدأ دائماً كطلب معلق
         }
 
         const newAppointment = new appointmentModel(appointmentData)
         await newAppointment.save()
-
-        // تحديث قاعدة بيانات الطبيب بالمواعيد الجديدة المحجوزة
         await doctorModel.findByIdAndUpdate(docId, { slots_booked })
 
-        res.json({ success: true, message: "تم حجز الموعد بنجاح ✅" })
-
+        res.json({ success: true, message: "تم إرسال طلب الحجز للطبيب بنجاح ✅" })
     } catch (error) {
-        console.error("❌ Error in bookAppointment:", error)
-        res.json({ success: false, message: "حدث خطأ أثناء معالجة الحجز" })
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// ✅ --- قبول طلب الحجز (خاص بالدكتور) ---
+const approveAppointment = async (req, res) => {
+    try {
+        const { appointmentId } = req.body
+        const appointment = await appointmentModel.findById(appointmentId)
+        const doctor = await doctorModel.findById(appointment.docId)
+
+        if (!appointment) return res.json({ success: false, message: "الحجز غير موجود" })
+
+        // تحديث الحالة لـ Accepted وإضافة عنوان الدكتور للإشعار
+        await appointmentModel.findByIdAndUpdate(appointmentId, { 
+            status: "Accepted",
+            doctorAddress: doctor.address // إرسال العنوان للمريض
+        })
+
+        res.json({ success: true, message: "تم قبول طلب الحجز وإشعار المريض بالعنوان ✅" })
+    } catch (error) {
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// ✅ --- رفض طلب الحجز (خاص بالدكتور) ---
+const rejectAppointment = async (req, res) => {
+    try {
+        const { appointmentId } = req.body
+        const appointment = await appointmentModel.findById(appointmentId)
+
+        if (!appointment) return res.json({ success: false, message: "الحجز غير موجود" })
+
+        // تحديث الحالة لـ Rejected (يظهر للمريض "لم يتم قبول طلبك")
+        await appointmentModel.findByIdAndUpdate(appointmentId, { status: "Rejected", cancelled: true })
+
+        // مسح الموعد من جدول الطبيب لفتحه مرة أخرى
+        const { docId, slotDate, slotTime } = appointment
+        const docData = await doctorModel.findById(docId)
+        let slots_booked = docData.slots_booked
+        slots_booked[slotDate] = slots_booked[slotDate].filter(item => item !== slotTime)
+        await doctorModel.findByIdAndUpdate(docId, { slots_booked })
+
+        res.json({ success: true, message: "تم رفض طلب الحجز بنجاح" })
+    } catch (error) {
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// ✅ --- إتمام الكشف (الزرار اللي بيفك الـ Blur) ---
+const completeAppointment = async (req, res) => {
+    try {
+        const { appointmentId } = req.body
+        await appointmentModel.findByIdAndUpdate(appointmentId, { 
+            status: "Completed", 
+            isCompleted: true 
+        })
+        res.json({ success: true, message: "تم إتمام الكشف بنجاح، تم فتح الموعد التالي ✅" })
+    } catch (error) {
+        res.json({ success: false, message: error.message })
     }
 }
 
@@ -204,50 +224,27 @@ const listAppointment = async (req, res) => {
     }
 }
 
-// 🛡️ --- نظام الإلغاء المحدث (طلب إلغاء بدل إلغاء فوري) ---
+// 🛡️ --- نظام الإلغاء المحدث ---
 const cancelAppointment = async (req, res) => {
     try {
         const { userId, appointmentId } = req.body
         const appointmentData = await appointmentModel.findById(appointmentId)
         
         if (!appointmentData) return res.json({ success: false, message: "الموعد غير موجود" })
-        if (String(appointmentData.userId) !== String(userId)) return res.json({ success: false, message: "غير مصرح لك بإلغاء هذا الحجز" })
+        if (String(appointmentData.userId) !== String(userId)) return res.json({ success: false, message: "غير مصرح لك" })
 
-        // 1️⃣ التحقق من الوقت: هل متبقي أقل من 20 دقيقة؟
-        const [day, month, year] = appointmentData.slotDate.split('_').map(Number);
-        
-        // استخراج الوقت وتحويله لـ 24 ساعة (مثال: 06:20 PM -> 18:20)
-        let [time, modifier] = appointmentData.slotTime.split(' ');
-        let [hours, minutes] = time.split(':').map(Number);
-        if (modifier === 'PM' && hours < 12) hours += 12;
-        if (modifier === 'AM' && hours === 12) hours = 0;
-
-        const appointmentDateTime = new Date(year, month - 1, day, hours, minutes);
-        const currentTime = new Date();
-        const timeDiff = (appointmentDateTime - currentTime) / (1000 * 60); // الفرق بالدقائق
-
-        if (timeDiff < 20 && timeDiff > 0) {
-            return res.json({ 
-                success: false, 
-                message: "عذراً، لا يمكن طلب الإلغاء قبل الموعد بأقل من 20 دقيقة" 
-            });
-        }
-
-        // 2️⃣ تحديث الحالة لطلب إلغاء معلق (Pending Approval)
-        // بدلاً من حذف الحجز من slots_booked فوراً، ننتظر موافقة الطبيب
         await appointmentModel.findByIdAndUpdate(appointmentId, { 
             cancellationRequest: true,
             cancellationStatus: 'pending'
         })
 
-        res.json({ success: true, message: "تم إرسال طلب الإلغاء للطبيب بنجاح، بانتظار الموافقة" })
-        
+        res.json({ success: true, message: "تم إرسال طلب الإلغاء للطبيب بنجاح" })
     } catch (error) {
         res.json({ success: false, message: error.message })
     }
 }
 
-// --- جلب بيانات بروفايل المستخدم ---
+// --- جلب وتحديث البروفايل ---
 const getProfile = async (req, res) => {
     try {
         const { userId } = req.body
@@ -258,16 +255,15 @@ const getProfile = async (req, res) => {
     }
 }
 
-// --- تحديث بيانات بروفايل المستخدم ---
 const updateProfile = async (req, res) => {
     try {
         const { userId, name, phone, address, dob, gender } = req.body
         const imageFile = req.file
-        if (!name || !phone) return res.json({ success: false, message: "الاسم ورقم الهاتف مطلوبان" })
+        if (!name || !phone) return res.json({ success: false, message: "بيانات ناقصة" })
 
         let parsedAddress = address;
         if (typeof address === 'string') {
-            try { parsedAddress = JSON.parse(address); } catch (e) { console.log("Address parse error"); }
+            try { parsedAddress = JSON.parse(address); } catch (e) { }
         }
 
         await userModel.findByIdAndUpdate(userId, { name, phone, address: parsedAddress, dob, gender })
@@ -282,4 +278,8 @@ const updateProfile = async (req, res) => {
     }
 }
 
-export { registerUser, loginUser, bookAppointment, listAppointment, cancelAppointment, getProfile, updateProfile }
+export { 
+    registerUser, loginUser, bookAppointment, listAppointment, 
+    cancelAppointment, getProfile, updateProfile,
+    approveAppointment, rejectAppointment, completeAppointment // الدوال الجديدة
+}

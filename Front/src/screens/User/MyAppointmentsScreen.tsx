@@ -15,6 +15,7 @@ import {
 import axios from 'axios';
 import { MotiView } from 'moti';
 import { AppContext } from '../../context/AppContext';
+import { Ionicons } from '@expo/vector-icons';
 
 // --- الثوابت ---
 const SPECIALITY_TRANSLATE: Record<string, string> = {
@@ -47,6 +48,8 @@ interface AppointmentItem {
     slotTime: string;
     cancelled: boolean;
     isCompleted: boolean;
+    status: 'Pending' | 'Accepted' | 'Rejected' | 'Completed'; // الحالة الأساسية من الباكيند
+    address?: string; // عنوان العيادة يظهر عند القبول
     cancellationRequest?: boolean; 
     cancellationStatus?: 'none' | 'pending' | 'accepted' | 'rejected'; 
 }
@@ -107,7 +110,6 @@ const MyAppointments = () => {
         getUserAppointments();
     }, [getUserAppointments]);
 
-    // ✅ تحديث دالة الإلغاء لترسل طلب انتظار موافقة الدكتور
     const requestCancelAppointment = async (appointmentId: string) => {
         if (loadingId) return;
 
@@ -125,7 +127,6 @@ const MyAppointments = () => {
                             { headers: { token } }
                         );
                         if (data.success) {
-                            // تحديث الحالة محلياً لتظهر "بانتظار الموافقة"
                             setAppointments(prev => 
                                 prev.map(item => item._id === appointmentId 
                                     ? { ...item, cancellationRequest: true, cancellationStatus: 'pending' } 
@@ -146,54 +147,80 @@ const MyAppointments = () => {
         ]);
     };
 
-    const renderItem = ({ item, index }: { item: AppointmentItem, index: number }) => (
-        <MotiView
-            from={{ opacity: 0, translateY: 15 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ delay: index * 30 }}
-            style={styles.card}
-        >
-            <View style={styles.cardContent}>
-                <Image
-                    source={getDocImage(item)}
-                    style={[styles.docImage, item.cancelled && styles.cancelledImage]}
-                    resizeMode="cover"
-                />
+    const renderItem = ({ item, index }: { item: AppointmentItem, index: number }) => {
+        // تحديد لون وشكل الحالة
+        const isAccepted = item.status === 'Accepted';
+        const isRejected = item.status === 'Rejected' || item.cancelled;
+        const isPending = item.status === 'Pending' && !item.cancelled;
+        const isCompleted = item.status === 'Completed' || item.isCompleted;
 
-                <View style={styles.infoWrapper}>
-                    <Text style={styles.docName} numberOfLines={1}>{item.docData.name}</Text>
-                    <Text style={styles.speciality}>
-                        {SPECIALITY_TRANSLATE[item.docData.speciality] || item.docData.speciality}
-                    </Text>
-                    <View style={styles.dateTimeRow}>
-                        <Text style={styles.tagText}>{formatSlotDate(item.slotDate)} | {item.slotTime}</Text>
+        return (
+            <MotiView
+                from={{ opacity: 0, translateY: 15 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ delay: index * 30 }}
+                style={[styles.card, isAccepted && styles.cardAccepted]}
+            >
+                {/* بانر العنوان في حالة قبول الحجز */}
+                {isAccepted && (
+                    <View style={styles.addressBanner}>
+                        <Ionicons name="location" size={14} color="#fff" />
+                        <Text style={styles.addressText}>تم قبول حجزك - العنوان: {item.address || 'مقر العيادة'}</Text>
+                    </View>
+                )}
+
+                <View style={styles.cardContent}>
+                    <Image
+                        source={getDocImage(item)}
+                        style={[styles.docImage, isRejected && styles.cancelledImage]}
+                        resizeMode="cover"
+                    />
+
+                    <View style={styles.infoWrapper}>
+                        <Text style={styles.docName} numberOfLines={1}>{item.docData.name}</Text>
+                        <Text style={styles.speciality}>
+                            {SPECIALITY_TRANSLATE[item.docData.speciality] || item.docData.speciality}
+                        </Text>
+                        <View style={styles.dateTimeRow}>
+                            <Text style={styles.tagText}>{formatSlotDate(item.slotDate)} | {item.slotTime}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.actionWrapper}>
+                        {isRejected ? (
+                            <View style={styles.badgeCancelled}>
+                                <Ionicons name="close-circle" size={12} color="#f87171" style={{marginLeft: 4}} />
+                                <Text style={styles.statusTextRed}>ملغي</Text>
+                            </View>
+                        ) : isCompleted ? (
+                            <View style={styles.badgeCompleted}>
+                                <Ionicons name="checkmark-done-circle" size={12} color="#34d399" style={{marginLeft: 4}} />
+                                <Text style={styles.statusTextGreen}>مكتمل</Text>
+                            </View>
+                        ) : item.cancellationRequest ? (
+                            <View style={styles.badgePending}><Text style={styles.statusTextOrange}>بانتظار الإلغاء</Text></View>
+                        ) : isPending ? (
+                            <View style={styles.badgePending}><Text style={styles.statusTextOrange}>بانتظار القبول</Text></View>
+                        ) : isAccepted ? (
+                            <View style={styles.badgeAccepted}><Text style={styles.statusTextGreen}>مؤكد</Text></View>
+                        ) : (
+                            <TouchableOpacity
+                                onPress={() => requestCancelAppointment(item._id)}
+                                style={[styles.cancelBtn, loadingId === item._id && { opacity: 0.5 }]}
+                                disabled={!!loadingId}
+                            >
+                                {loadingId === item._id ? (
+                                    <ActivityIndicator size="small" color="#f87171" />
+                                ) : (
+                                    <Text style={styles.cancelBtnText}>إلغاء</Text>
+                                )}
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
-
-                <View style={styles.actionWrapper}>
-                    {item.cancelled ? (
-                        <View style={styles.badgeCancelled}><Text style={styles.statusTextRed}>ملغي</Text></View>
-                    ) : item.isCompleted ? (
-                        <View style={styles.badgeCompleted}><Text style={styles.statusTextGreen}>مكتمل</Text></View>
-                    ) : item.cancellationRequest ? (
-                        <View style={styles.badgePending}><Text style={styles.statusTextOrange}>بانتظار الموافقة</Text></View>
-                    ) : (
-                        <TouchableOpacity
-                            onPress={() => requestCancelAppointment(item._id)}
-                            style={[styles.cancelBtn, loadingId === item._id && { opacity: 0.5 }]}
-                            disabled={!!loadingId}
-                        >
-                            {loadingId === item._id ? (
-                                <ActivityIndicator size="small" color="#f87171" />
-                            ) : (
-                                <Text style={styles.cancelBtnText}>إلغاء</Text>
-                            )}
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </View>
-        </MotiView>
-    );
+            </MotiView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container}>
@@ -242,6 +269,27 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         borderWidth: 1,
         borderColor: '#334155',
+        overflow: 'hidden'
+    },
+    cardAccepted: {
+        borderColor: '#2dd4bf',
+        borderWidth: 1.5
+    },
+    addressBanner: {
+        backgroundColor: '#2dd4bf',
+        marginHorizontal: -12,
+        marginTop: -12,
+        marginBottom: 10,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        flexDirection: 'row-reverse',
+        alignItems: 'center'
+    },
+    addressText: {
+        color: '#0f172a',
+        fontSize: 11,
+        fontWeight: 'bold',
+        marginRight: 6
     },
     cardContent: { flexDirection: 'row-reverse', alignItems: 'center' },
     docImage: { width: 60, height: 60, borderRadius: 12, backgroundColor: '#334155' },
@@ -251,10 +299,11 @@ const styles = StyleSheet.create({
     speciality: { fontSize: 12, color: '#2dd4bf', marginTop: 2, fontWeight: '600' },
     dateTimeRow: { marginTop: 6, backgroundColor: '#334155', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
     tagText: { fontSize: 11, color: '#cbd5e1' },
-    actionWrapper: { minWidth: 90, alignItems: 'center' },
-    badgeCancelled: { backgroundColor: 'rgba(239, 68, 68, 0.1)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-    badgeCompleted: { backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+    actionWrapper: { minWidth: 95, alignItems: 'center' },
+    badgeCancelled: { backgroundColor: 'rgba(239, 68, 68, 0.1)', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, flexDirection: 'row-reverse', alignItems: 'center' },
+    badgeCompleted: { backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, flexDirection: 'row-reverse', alignItems: 'center' },
     badgePending: { backgroundColor: 'rgba(245, 158, 11, 0.1)', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8 },
+    badgeAccepted: { backgroundColor: 'rgba(45, 212, 191, 0.1)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
     statusTextRed: { color: '#f87171', fontSize: 11, fontWeight: 'bold' },
     statusTextGreen: { color: '#34d399', fontSize: 11, fontWeight: 'bold' },
     statusTextOrange: { color: '#fbbf24', fontSize: 10, fontWeight: 'bold', textAlign: 'center' },

@@ -98,6 +98,25 @@ const doctorSlice = createSlice({
             }
         },
 
+        // 🚀 --- Reducers الجديدة لإدارة لوجيك المواعيد والـ Blur ---
+
+        /**
+         * ✅ تحديث حالة موعد معين (قبول/رفض/إتمام)
+         * تستخدم لتحديث الـ UI فوراً بعد رد الـ API
+         */
+        updateAppointmentStatusInStore: (state, action: PayloadAction<{ 
+            appointmentId: string, 
+            status: 'Pending' | 'Accepted' | 'Rejected' | 'Completed',
+            isCompleted?: boolean 
+        }>) => {
+            // ملاحظة: بما أن المواعيد قد تكون داخل كائن الدكتور أو في state منفصلة، 
+            // يتم استخدام هذا الـ Reducer لتحديث الحالة العامة التي تعتمد عليها شاشة الـ Dashboard
+            state.lastUpdated = Date.now();
+            if (action.payload.status === 'Completed') {
+                state.completedAppointmentsCount += 1;
+            }
+        },
+
         /**
          * 🗑️ حذف طبيب من القائمة
          */
@@ -130,11 +149,13 @@ export const {
     updateDoctorSlotsInStore, 
     deleteDoctorFromStore,
     resetDoctorState,
-    updateDoctorFinancials // المصدر الجديد للبيانات المالية
+    updateDoctorFinancials,
+    updateAppointmentStatusInStore // تصدير الـ Reducer الجديد
 } = doctorSlice.actions;
 
 export const selectAllDoctors = (state: { doctors: DoctorState }) => state.doctors.doctors;
-// Selector جديد لمعرفة حالة الحساب
+
+// Selector جديد لمعرفة حالة الحساب والبيانات المالية
 export const selectDoctorFinancials = (state: { doctors: DoctorState }) => ({
     totalFeesToAwn: state.doctors.totalFeesToAwn,
     isSuspended: state.doctors.isSuspended,
