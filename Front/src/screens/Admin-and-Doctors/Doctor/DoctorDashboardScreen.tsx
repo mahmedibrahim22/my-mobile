@@ -15,8 +15,8 @@ import {
 } from 'react-native';
 import { DoctorContext } from '../../../context/DoctorContext';
 import { AppContext } from '../../../context/AppContext';
-import { useDispatch } from 'react-redux'; // ✅ إضافة الريدكس
-import { updateDoctorFinancials } from '../../../store/slices/DoctorSlice'; // ✅ الأكشن الجديد
+import { useDispatch } from 'react-redux'; 
+import { updateDoctorFinancials } from '../../../store/slices/DoctorSlice'; 
 import axiosInstance from '../../../api/axiosInstance';
 import CONFIG from '../../../constants/Config';
 import { useNavigation } from '@react-navigation/native';
@@ -34,6 +34,8 @@ interface LatestAppointment {
     illnessDescription: string;
     cancelled: boolean;
     isCompleted: boolean;
+    cancellationRequest: boolean; // ✅ إضافة حقل طلب الإلغاء
+    cancellationStatus: 'pending' | 'accepted' | 'rejected' | 'none';
     amount?: number;
 }
 
@@ -82,25 +84,22 @@ const DoctorDashboard = () => {
             });
             
             if (data.success) {
-                // ✅ فلترة المواعيد لتظهر المكتملة فقط
                 const processedDashData = { ...data.dashData };
                 if (processedDashData.latestAppointments) {
+                    // ✅ تم تعديل الفلترة لتشمل المكتملة OR التي بها طلب إلغاء نشط
                     processedDashData.latestAppointments = processedDashData.latestAppointments
-                        .filter((app: LatestAppointment) => app.isCompleted === true)
+                        .filter((app: LatestAppointment) => app.isCompleted === true || app.cancellationRequest === true)
                         .reverse();
                 }
 
                 setDashData(processedDashData);
                 
-                // ✅ تحديث الريدكس فوراً
                 dispatch(updateDoctorFinancials({
                     totalFeesToAwn: data.dashData.totalFeesToAwn,
                     isSuspended: data.dashData.isSuspended,
                     paymentStatus: data.dashData.paymentStatus
                 }));
 
-                // ✅ تم إزالة استدعاء doctorCtx هنا لمنع الـ Loop إذا كان يسبب ريندر إضافي غير متحكم به
-                // والاكتفاء بالتحديث المحلي والريدكس
                 if (doctorCtx?.setDashData) {
                     doctorCtx.setDashData(processedDashData);
                 }
@@ -111,7 +110,7 @@ const DoctorDashboard = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [dToken, dispatch]); // 🛠️ تم إزالة doctorCtx من هنا لمنع الـ Infinite Loop
+    }, [dToken, dispatch]);
 
     useEffect(() => {
         if (dToken) {
@@ -124,20 +123,36 @@ const DoctorDashboard = () => {
         getDashData();
     };
 
+    // ✅ تحديث الدالة لتشمل قبول أو رفض الإلغاء
+    const handleCancellationAction = async (id: string, action: 'accepted' | 'rejected') => {
+        try {
+            const { data } = await axiosInstance.post('/doctor/appointment-cancel', 
+                { appointmentId: id, action }, 
+                { headers: { [CONFIG.HEADERS.DOCTOR_TOKEN]: dToken } }
+            );
+            if (data.success) {
+                Alert.alert('عَوْن', data.message);
+                getDashData();
+            }
+        } catch {
+            Alert.alert('خطأ', 'فشل تنفيذ الإجراء');
+        }
+    };
+
     const handleStatusUpdate = (id: string, action: 'cancel' | 'complete') => {
         const isCancel = action === 'cancel';
         Alert.alert(
             isCancel ? 'إلغاء الموعد؟' : 'إتمام الكشف بنجاح',
-            isCancel ? 'هل تريد طلب إلغاء هذا الحجز؟' : 'تأكيد إتمام الكشف للانتقال للحجز التالي وحساب رسوم عون إن وجدت.',
+            isCancel ? 'هل تريد إلغاء هذا الحجز نهائياً؟' : 'تأكيد إتمام الكشف للانتقال للحجز التالي.',
             [
                 { text: 'تراجع', style: 'cancel' },
                 { 
-                    text: isCancel ? 'طلب إلغاء' : 'تم الكشف بنجاح', 
+                    text: isCancel ? 'إلغاء' : 'تم الكشف', 
                     onPress: async () => {
                         try {
-                            const endpoint = isCancel ? '/doctor/cancel-appointment' : '/doctor/complete-appointment';
-                            const { data } = await axiosInstance.post(endpoint, 
-                                { appointmentId: id }, 
+                            const endpoint = isCancel ? '/doctor/appointment-cancel' : '/doctor/complete-appointment';
+                            const payload = isCancel ? { appointmentId: id, action: 'accepted' } : { appointmentId: id };
+                            const { data } = await axiosInstance.post(endpoint, payload, 
                                 { headers: { [CONFIG.HEADERS.DOCTOR_TOKEN]: dToken } }
                             );
                             if (data.success) {
@@ -192,48 +207,24 @@ const DoctorDashboard = () => {
                 contentContainerStyle={{ paddingBottom: 20 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.accent]} tintColor={theme.accent} />}
             >
-                {/* الهيدر */}
                 <View style={[styles.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
                     <Text style={[styles.headerTitle, { color: theme.textMain }]}>لوحة التحكم</Text>
                     <Text style={[styles.headerSubtitle, { color: theme.textSub }]}>إحصائيات المواعيد والرسوم المستحقة</Text>
                 </View>
 
-                {/* قسم الإحصائيات */}
                 <View style={styles.statsGrid}>
-                    <StatCard 
-                        label="أرباحك" 
-                        val={`${dashData?.earnings || 0} ${currency}`} 
-                        color="#10b981" 
-                        bgColor={isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)'} 
-                        icon="💰" 
-                        theme={theme}
-                    />
-                    <StatCard 
-                        label="رسوم عون" 
-                        val={`${dashData?.totalFeesToAwn || 0} ${currency}`} 
-                        color="#ef4444" 
-                        bgColor={isDarkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)'} 
-                        icon="🏢" 
-                        theme={theme}
-                    />
-                    <StatCard 
-                        label="مرضى عون" 
-                        val={dashData?.patientsCount || 0} 
-                        color="#f59e0b" 
-                        bgColor={isDarkMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)'} 
-                        icon="👤" 
-                        theme={theme}
-                    />
+                    <StatCard label="أرباحك" val={`${dashData?.earnings || 0} ${currency}`} color="#10b981" bgColor={isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)'} icon="💰" theme={theme} />
+                    <StatCard label="رسوم عون" val={`${dashData?.totalFeesToAwn || 0} ${currency}`} color="#ef4444" bgColor={isDarkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)'} icon="🏢" theme={theme} />
+                    <StatCard label="مرضى عون" val={dashData?.patientsCount || 0} color="#f59e0b" bgColor={isDarkMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)'} icon="👤" theme={theme} />
                 </View>
 
-                {/* الحجوزات الأخيرة */}
                 <View style={styles.sectionHeader}>
                     <TouchableOpacity onPress={getDashData}><Text style={[styles.refreshBtn, { color: theme.accent }]}>تحديث القائمة</Text></TouchableOpacity>
-                    <Text style={[styles.sectionTitle, { color: theme.textMain }]}>آخر المواعيد المكتملة</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.textMain }]}>المواعيد الجارية والمكتملة</Text>
                 </View>
 
                 {!dashData || dashData.latestAppointments.length === 0 ? (
-                    <View style={styles.emptyState}><Text style={[styles.emptyText, { color: theme.textSub }]}>لا توجد مواعيد مكتملة حالياً</Text></View>
+                    <View style={styles.emptyState}><Text style={[styles.emptyText, { color: theme.textSub }]}>لا توجد مواعيد نشطة حالياً</Text></View>
                 ) : (
                     dashData.latestAppointments.map((item, index) => {
                         const isNotNext = dashData.nextAppointmentId !== null && item._id !== dashData.nextAppointmentId;
@@ -242,14 +233,9 @@ const DoctorDashboard = () => {
                         return (
                             <View key={item._id || index} style={[styles.appointmentCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
                                 <View style={styles.rowReverse}>
-                                    <Image 
-                                        source={{ uri: item.userData.image }} 
-                                        style={[styles.patientImg, isBlurred && styles.lightBlurEffect]} 
-                                    />
+                                    <Image source={{ uri: item.userData.image }} style={[styles.patientImg, isBlurred && styles.lightBlurEffect]} />
                                     <View style={styles.patientDetails}>
-                                        <Text style={[styles.patientName, { color: theme.textMain }, isBlurred && styles.lightBlurEffect]}>
-                                            {item.userData.name}
-                                        </Text>
+                                        <Text style={[styles.patientName, { color: theme.textMain }, isBlurred && styles.lightBlurEffect]}>{item.userData.name}</Text>
                                         <Text style={[styles.timeText, { color: theme.accent }]}>{item.slotTime} • {slotDateFormat(item.slotDate)}</Text>
                                     </View>
                                     
@@ -258,6 +244,16 @@ const DoctorDashboard = () => {
                                             <Text style={[styles.statusTag, { color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>ملغي</Text>
                                         ) : item.isCompleted ? (
                                             <Text style={[styles.statusTag, { color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>مكتمل</Text>
+                                        ) : item.cancellationRequest ? (
+                                            // ✅ حالة طلب الإلغاء: يظهر قبول أو رفض
+                                            <View style={styles.btnRow}>
+                                                <TouchableOpacity onPress={() => handleCancellationAction(item._id, 'rejected')} style={[styles.iconBtn, { borderColor: '#ef4444' }]}>
+                                                    <Ionicons name="close-circle" size={20} color="#ef4444" />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => handleCancellationAction(item._id, 'accepted')} style={[styles.iconBtn, { borderColor: '#10b981' }]}>
+                                                    <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                                                </TouchableOpacity>
+                                            </View>
                                         ) : (
                                             <View style={styles.btnRow}>
                                                 <TouchableOpacity onPress={() => handleStatusUpdate(item._id, 'cancel')} style={[styles.iconBtn, { backgroundColor: isDarkMode ? '#1e293b' : '#f8fafc', borderColor: theme.border }]}>
@@ -273,7 +269,7 @@ const DoctorDashboard = () => {
                                 
                                 <View style={[styles.cardFooter, { borderTopColor: theme.border }]}>
                                     <Text style={[styles.illnessText, { color: theme.textSub }, isBlurred && styles.lightBlurEffect]} numberOfLines={1}>
-                                        {item.illnessDescription || 'لا يوجد وصف للحالة'}
+                                        {item.cancellationRequest ? '⚠️ المريض يطلب إلغاء الحجز' : (item.illnessDescription || 'لا يوجد وصف للحالة')}
                                     </Text>
                                     <View style={[styles.ageBadge, { backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9' }]}>
                                         <Text style={[styles.ageText, { color: theme.textSub }]}>{item.patientAge} سنة</Text>
@@ -334,7 +330,7 @@ const styles = StyleSheet.create({
     timeText: { fontSize: 11, fontWeight: '800', marginTop: 4 },
     actionArea: { minWidth: 70, alignItems: 'center' },
     btnRow: { flexDirection: 'row', gap: 8 },
-    iconBtn: { padding: 10, borderRadius: 12, borderWidth: 1 },
+    iconBtn: { padding: 5, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
     statusTag: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10, fontSize: 10, fontWeight: '900', overflow: 'hidden' },
     cardFooter: { flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 15, paddingTop: 12, borderTopWidth: 1, alignItems: 'center' },
     illnessText: { fontSize: 11, flex: 1, textAlign: 'right', marginLeft: 15 },

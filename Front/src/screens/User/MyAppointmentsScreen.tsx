@@ -47,8 +47,8 @@ interface AppointmentItem {
     slotTime: string;
     cancelled: boolean;
     isCompleted: boolean;
-    cancellationRequest?: boolean; // الحالة الجديدة للطلب المعلق
-    cancellationStatus?: 'none' | 'pending' | 'accepted' | 'rejected'; // حالة الرد
+    cancellationRequest?: boolean; 
+    cancellationStatus?: 'none' | 'pending' | 'accepted' | 'rejected'; 
 }
 
 const MyAppointments = () => {
@@ -62,7 +62,6 @@ const MyAppointments = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [loadingId, setLoadingId] = useState<string | null>(null);
 
-    // دالة جلب الصورة مع التصحيح التلقائي
     const getDocImage = useCallback((item: AppointmentItem) => {
         if (item.docData?.image) return { uri: item.docData.image };
         

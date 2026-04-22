@@ -16,7 +16,7 @@ const normalizeTime = (time) => {
         .replace(/^0/, '');
 };
 
-// --- جلب قائمة الأطباء (تم تحسين المنطق ليعكس التوفر الحقيقي والمديونية) ---
+// --- جلب قائمة الأطباء ---
 const doctorList = async (req, res) => {
     try {
         const doctors = await doctorModel.find({}).select("-password");
@@ -39,12 +39,11 @@ const doctorList = async (req, res) => {
                 : 0;
 
             const hasSlotsDefined = doc.slots_available && 
-                                   doc.slots_available[dayNameNow] && 
-                                   doc.slots_available[dayNameNow].length > 0;
+                                    doc.slots_available[dayNameNow] && 
+                                    doc.slots_available[dayNameNow].length > 0;
 
             const isNotOffDay = !doc.offDays.includes(dayNameNow);
 
-            // ✅ الطبيب متاح فقط إذا كان حسابه غير موقوف (isSuspended)
             const isAvailableNow = (doc.available !== undefined ? doc.available : true) && 
                                    isNotOffDay && 
                                    hasSlotsDefined && 
@@ -95,7 +94,7 @@ const loginDoctor = async (req, res) => {
     }
 }
 
-// --- لوحة التحكم (إحصائيات الطبيب مع نظام المديونية) ---
+// --- لوحة التحكم (إحصائيات الطبيب) ---
 const doctorDashboard = async (req, res) => {
     try {
         const { docId } = req.body;
@@ -109,7 +108,8 @@ const doctorDashboard = async (req, res) => {
 
         const patientIds = [...new Set(appointments.map(item => item.userId.toString()))];
 
-        const activeAppointments = appointments.filter(a => !a.cancelled && !a.isCompleted);
+        // ✅ تحسين جلب الحجز القادم: استبعاد أي حجز ملغي أو تم طلب إلغاؤه
+        const activeAppointments = appointments.filter(a => !a.cancelled && !a.isCompleted && !a.cancellationRequest);
         const nextAppointmentId = activeAppointments.length > 0 ? activeAppointments[0]._id : null;
 
         const dashData = {
@@ -117,7 +117,6 @@ const doctorDashboard = async (req, res) => {
             appointmentsCount: appointments.length,
             patientsCount: patientIds.length,
             latestAppointments: appointments.reverse().slice(0, 5),
-            // ✅ حقول المحاسبة الجديدة لعون
             totalFeesToAwn: doctor.totalFeesToAwn,
             isSuspended: doctor.isSuspended,
             paymentStatus: doctor.paymentStatus,
@@ -147,22 +146,19 @@ const appointmentsDoctor = async (req, res) => {
     }
 }
 
-// ✅ زر "تم الكشف بنجاح" + نظام الـ 10 جنيهات المحاسبي
+// ✅ إتمام الكشف
 const appointmentComplete = async (req, res) => {
     try {
         const { docId, appointmentId } = req.body;
         const appointmentData = await appointmentModel.findById(appointmentId);
 
         if (appointmentData && appointmentData.docId.toString() === docId) {
-            // 1. تحديث حالة الموعد لمكتمل
             await appointmentModel.findByIdAndUpdate(appointmentId, { isCompleted: true });
 
-            // 2. تحديث عداد الكشوفات والمديونية
             const doctor = await doctorModel.findById(docId);
             let newCompletedCount = (doctor.completedAppointmentsCount || 0) + 1;
             let newFees = doctor.totalFeesToAwn || 0;
 
-            // ✅ منطق المحاسب: لو عدى 7 كشوفات، يبدأ يضيف 10ج عمولة
             if (newCompletedCount > 7) {
                 newFees += 10;
             }
@@ -180,7 +176,7 @@ const appointmentComplete = async (req, res) => {
     }
 }
 
-// 🛡️ --- إدارة إلغاء الموعد (موافقة أو رفض طلب المريض) ---
+// 🛡️ إدارة إلغاء الموعد (موافقة أو رفض)
 const appointmentCancel = async (req, res) => {
     try {
         const { docId, appointmentId, action } = req.body; 
@@ -188,12 +184,14 @@ const appointmentCancel = async (req, res) => {
 
         if (appointmentData && appointmentData.docId.toString() === docId) {
             if (action === 'accepted') {
+                // ✅ تحديث الحجز ليكون ملغياً نهائياً وإغلاق الطلب
                 await appointmentModel.findByIdAndUpdate(appointmentId, { 
                     cancelled: true, 
                     cancellationStatus: 'accepted',
                     cancellationRequest: false
                 });
 
+                // تحرير الـ Slot من جدول الطبيب
                 const { slotDate, slotTime } = appointmentData;
                 const docData = await doctorModel.findById(docId);
                 let slots_booked = docData.slots_booked;
@@ -209,6 +207,7 @@ const appointmentCancel = async (req, res) => {
 
                 return res.json({ success: true, message: "تم قبول الإلغاء وتحرير الموعد بنجاح" });
             } else {
+                // في حالة الرفض: يعود الموعد كما كان ويختفي طلب الإلغاء
                 await appointmentModel.findByIdAndUpdate(appointmentId, { 
                     cancellationStatus: 'rejected',
                     cancellationRequest: false 
@@ -244,7 +243,7 @@ const changeAvailability = async (req, res) => {
     }
 }
 
-// ✅ رفع إثبات الدفع (Screenshot) لعون
+// ✅ رفع إثبات الدفع
 const uploadPaymentScreenshot = async (req, res) => {
     try {
         const { docId } = req.body;
