@@ -54,14 +54,15 @@ const doctorSchema = new mongoose.Schema({
     },
 
     // 💰 نظام رسوم تشغيل وصيانة "عون" (10ج على كل كشف بعد أول 7 حجوزات)
-    dailyAppointmentsCount: { type: Number, default: 0 }, // عداد الكشوفات اليومي
+    // ✅ تم تحديث الحقول لتتوافق مع منطق المحاسبة الجديد
+    completedAppointmentsCount: { type: Number, default: 0 }, // إجمالي الكشوفات المكتملة منذ تاريخ التأسيس أو آخر سداد
     totalFeesToAwn: { type: Number, default: 0 },       // إجمالي المبلغ المستحق لعون (عدد الكشوفات بعد الـ7 * 10)
     isSuspended: { type: Boolean, default: false },     // هل تم إيقاف الطبيب لعدم السداد؟
     paymentStatus: { 
         type: String, 
         enum: ["none", "pending", "verified"], 
         default: "none" 
-    }, // حالة السداد (none: لم يرفع، pending: رفع الصورة وينتظر الأدمن، verified: تم التأكد)
+    }, // حالة السداد (none: لم يرفع، pending: بانتظار مراجعة الأدمن، verified: تم التحقق والتصفير)
     paymentScreenshot: { type: String, default: "" },   // رابط صورة إيصال الدفع (فودافون كاش / انستا باي)
 
     // العنوان

@@ -24,12 +24,13 @@ const appointmentSchema = new mongoose.Schema({
     isCompleted: { type: Boolean, default: false }, // هل انتهى الكشف بنجاح؟ (الزرار الإلزامي للدكتور)
     
     // 🛡️ نظام إدارة الإلغاء الجديد (بموافقة الطبيب)
+    // تم إضافة هذه الحقول لتمكين منطق طلب الإلغاء بدلاً من الإلغاء الفوري
     cancellationRequest: { type: Boolean, default: false }, // هل قدم المريض طلب إلغاء؟
     cancellationStatus: { 
         type: String, 
         enum: ["none", "pending", "accepted", "rejected"], 
         default: "none" 
-    }, // حالة طلب الإلغاء
+    }, // حالة طلب الإلغاء: (لا يوجد، معلق، مقبول، مرفوض)
 
     // 🕒 نظام تتابع المواعيد (الـ Blur)
     isNext: { type: Boolean, default: false }, // هل هذا هو الموعد التالي الذي يجب أن يظهر بدون Blur؟

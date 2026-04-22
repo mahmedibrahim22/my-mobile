@@ -4,10 +4,21 @@ import jwt from "jsonwebtoken"
 import appointmentModel from "../models/appointmentModel.js"
 import { v2 as cloudinary } from 'cloudinary'
 
-// --- جلب قائمة الأطباء (تم تحسين المنطق ليعكس التوفر الحقيقي) ---
+/**
+ * 🛠️ دالة مساعدة لتنظيف تنسيق الوقت لضمان دقة المقارنة
+ */
+const normalizeTime = (time) => {
+    if (!time) return "";
+    return time.toString()
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '')
+        .replace(/^0/, '');
+};
+
+// --- جلب قائمة الأطباء (تم تحسين المنطق ليعكس التوفر الحقيقي والمديونية) ---
 const doctorList = async (req, res) => {
     try {
-        // جلب جميع الأطباء مع استثناء كلمة المرور
         const doctors = await doctorModel.find({}).select("-password");
 
         if (!doctors || doctors.length === 0) {
@@ -17,28 +28,23 @@ const doctorList = async (req, res) => {
         const today = new Date();
         const slotDate = `${today.getDate()}_${today.getMonth() + 1}_${today.getFullYear()}`;
         
-        // مصفوفة الأيام بالعربي للمطابقة مع Schema
         const daysArabic = ['الأحد', 'الأثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
         const dayNameNow = daysArabic[today.getDay()];
 
         const doctorsWithStatus = doctors.map(doc => {
             const docObj = doc.toObject();
             
-            // 1. حساب المواعيد المحجوزة لليوم
             const bookedSlotsToday = (doc.slots_booked && doc.slots_booked[slotDate]) 
                 ? doc.slots_booked[slotDate].length 
                 : 0;
 
-            // 2. التحقق من وجود فترات متاحة مسجلة لهذا اليوم في جدول الطبيب
             const hasSlotsDefined = doc.slots_available && 
                                    doc.slots_available[dayNameNow] && 
                                    doc.slots_available[dayNameNow].length > 0;
 
-            // 3. التحقق مما إذا كان اليوم هو يوم إجازة للطبيب
             const isNotOffDay = !doc.offDays.includes(dayNameNow);
 
-            // 4. تحديد التوفر الحقيقي:
-            // أضفنا شرط isSuspended: لو الطبيب موقوف بسبب الديون لا يظهر متاحاً
+            // ✅ الطبيب متاح فقط إذا كان حسابه غير موقوف (isSuspended)
             const isAvailableNow = (doc.available !== undefined ? doc.available : true) && 
                                    isNotOffDay && 
                                    hasSlotsDefined && 
@@ -52,7 +58,6 @@ const doctorList = async (req, res) => {
             };
         });
 
-        // ترتيب الأطباء: المتاح حالياً يظهر أولاً
         const sortedDoctors = doctorsWithStatus.sort((a, b) => {
             if (a.isAvailableNow === b.isAvailableNow) return 0;
             return a.isAvailableNow ? -1 : 1;
@@ -104,7 +109,6 @@ const doctorDashboard = async (req, res) => {
 
         const patientIds = [...new Set(appointments.map(item => item.userId.toString()))];
 
-        // منطق الـ Blur: جلب أول حجز نشط فقط ليتم عرضه بدون تشويش
         const activeAppointments = appointments.filter(a => !a.cancelled && !a.isCompleted);
         const nextAppointmentId = activeAppointments.length > 0 ? activeAppointments[0]._id : null;
 
@@ -113,11 +117,12 @@ const doctorDashboard = async (req, res) => {
             appointmentsCount: appointments.length,
             patientsCount: patientIds.length,
             latestAppointments: appointments.reverse().slice(0, 5),
-            // بيانات المديونية للفرونت إند
+            // ✅ حقول المحاسبة الجديدة لعون
             totalFeesToAwn: doctor.totalFeesToAwn,
             isSuspended: doctor.isSuspended,
             paymentStatus: doctor.paymentStatus,
-            nextAppointmentId // إرسال معرف الحجز الذي لا يجب عمل Blur له
+            completedAppointmentsCount: doctor.completedAppointmentsCount,
+            nextAppointmentId 
         };
 
         res.json({ success: true, dashData });
@@ -133,7 +138,6 @@ const appointmentsDoctor = async (req, res) => {
         const { docId } = req.body;
         const appointments = await appointmentModel.find({ docId });
         
-        // تحديد أول موعد متاح ليكون هو المسموح به (Non-Blur)
         const activeSlots = appointments.filter(a => !a.isCompleted && !a.cancelled);
         const nextId = activeSlots.length > 0 ? activeSlots[0]._id : null;
 
@@ -143,28 +147,28 @@ const appointmentsDoctor = async (req, res) => {
     }
 }
 
-// ✅ زر "تم الكشف بنجاح" الإلزامي + حساب الـ 10ج بعد الحجز السابع
+// ✅ زر "تم الكشف بنجاح" + نظام الـ 10 جنيهات المحاسبي
 const appointmentComplete = async (req, res) => {
     try {
         const { docId, appointmentId } = req.body;
         const appointmentData = await appointmentModel.findById(appointmentId);
 
         if (appointmentData && appointmentData.docId.toString() === docId) {
-            // 1. تحديث الحجز كمكتمل
+            // 1. تحديث حالة الموعد لمكتمل
             await appointmentModel.findByIdAndUpdate(appointmentId, { isCompleted: true });
 
-            // 2. تحديث عداد الدكتور والمديونية
+            // 2. تحديث عداد الكشوفات والمديونية
             const doctor = await doctorModel.findById(docId);
-            let newDailyCount = (doctor.dailyAppointmentsCount || 0) + 1;
+            let newCompletedCount = (doctor.completedAppointmentsCount || 0) + 1;
             let newFees = doctor.totalFeesToAwn || 0;
 
-            // إذا تخطى 7 حجوزات، نبدأ بحساب 10ج على كل كشف جديد
-            if (newDailyCount > 7) {
+            // ✅ منطق المحاسب: لو عدى 7 كشوفات، يبدأ يضيف 10ج عمولة
+            if (newCompletedCount > 7) {
                 newFees += 10;
             }
 
             await doctorModel.findByIdAndUpdate(docId, {
-                dailyAppointmentsCount: newDailyCount,
+                completedAppointmentsCount: newCompletedCount,
                 totalFeesToAwn: newFees
             });
 
@@ -176,24 +180,40 @@ const appointmentComplete = async (req, res) => {
     }
 }
 
+// 🛡️ --- إدارة إلغاء الموعد (موافقة أو رفض طلب المريض) ---
 const appointmentCancel = async (req, res) => {
     try {
-        const { docId, appointmentId, action } = req.body; // action: 'accepted' or 'rejected'
+        const { docId, appointmentId, action } = req.body; 
         const appointmentData = await appointmentModel.findById(appointmentId);
 
         if (appointmentData && appointmentData.docId.toString() === docId) {
             if (action === 'accepted') {
                 await appointmentModel.findByIdAndUpdate(appointmentId, { 
                     cancelled: true, 
-                    cancellationStatus: 'accepted' 
+                    cancellationStatus: 'accepted',
+                    cancellationRequest: false
                 });
-                return res.json({ success: true, message: "تم قبول الإلغاء والموعد متاح الآن" });
+
+                const { slotDate, slotTime } = appointmentData;
+                const docData = await doctorModel.findById(docId);
+                let slots_booked = docData.slots_booked;
+                
+                const cleanToCancel = normalizeTime(slotTime);
+                if (slots_booked[slotDate]) {
+                    slots_booked[slotDate] = slots_booked[slotDate].filter(e => 
+                        normalizeTime(e) !== cleanToCancel
+                    );
+                }
+                
+                await doctorModel.findByIdAndUpdate(docId, { slots_booked });
+
+                return res.json({ success: true, message: "تم قبول الإلغاء وتحرير الموعد بنجاح" });
             } else {
                 await appointmentModel.findByIdAndUpdate(appointmentId, { 
                     cancellationStatus: 'rejected',
                     cancellationRequest: false 
                 });
-                return res.json({ success: true, message: "تم رفض طلب الإلغاء" });
+                return res.json({ success: true, message: "تم رفض طلب الإلغاء، الموعد ما زال قائماً" });
             }
         }
         res.json({ success: false, message: "لا يمكن تنفيذ الإجراء" });
@@ -232,14 +252,14 @@ const uploadPaymentScreenshot = async (req, res) => {
 
         if (!imageFile) return res.json({ success: false, message: "يرجى إرفاق صورة الإيصال" });
 
-        const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: "image" });
+        const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: "image", folder: "payments" });
         
         await doctorModel.findByIdAndUpdate(docId, {
             paymentScreenshot: imageUpload.secure_url,
             paymentStatus: 'pending'
         });
 
-        res.json({ success: true, message: "تم رفع الإيصال، يرجى الانتظار حتى التحقق ✅" });
+        res.json({ success: true, message: "تم رفع الإيصال، يرجى الانتظار حتى مراجعة الإدارة ✅" });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
@@ -300,7 +320,6 @@ const updateDoctorProfile = async (req, res) => {
     }
 }
 
-// --- ✅ تحديث جدول المواعيد والإعدادات ---
 const updateDoctorSlots = async (req, res) => {
     try {
         const { docId, slots, duration, breakTime, offDays, startTime, endTime, breakStart } = req.body;

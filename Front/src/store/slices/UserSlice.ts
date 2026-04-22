@@ -109,9 +109,25 @@ const userSlice = createSlice({
         setUserData: (state, action: PayloadAction<UserData | null>) => {
             state.userData = action.payload;
         },
-        updateAppointmentStatus: (state, action: PayloadAction<{id: string, status: boolean}>) => {
+        /**
+         * ✅ تحديث حالة الموعد (إلغاء، طلب إلغاء، أو إتمام)
+         */
+        updateAppointmentStatus: (state, action: PayloadAction<{
+            id: string, 
+            cancelled?: boolean, 
+            cancellationRequest?: boolean, 
+            isCompleted?: boolean 
+        }>) => {
             state.appointments = state.appointments.map(app => 
-                app._id === action.payload.id ? { ...app, cancelled: action.payload.status } : app
+                app._id === action.payload.id 
+                ? { 
+                    ...app, 
+                    // نحدث فقط القيم اللي مبعوثة في الـ Payload
+                    cancelled: action.payload.cancelled !== undefined ? action.payload.cancelled : app.cancelled,
+                    cancellationRequest: action.payload.cancellationRequest !== undefined ? action.payload.cancellationRequest : app.cancellationRequest,
+                    isCompleted: action.payload.isCompleted !== undefined ? action.payload.isCompleted : app.isCompleted
+                  } 
+                : app
             );
         },
         logout: (state) => {
@@ -138,7 +154,6 @@ const userSlice = createSlice({
             .addCase(loadUserProfile.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload as string;
-                // تنظيف التوكن إذا كان الخطأ متعلق بالصلاحية لمنع الـ Loop
                 if (state.error?.includes('Session') || state.error?.includes('token')) {
                     state.token = '';
                     AsyncStorage.removeItem('token');

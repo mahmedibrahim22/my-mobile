@@ -47,6 +47,8 @@ interface AppointmentItem {
     slotTime: string;
     cancelled: boolean;
     isCompleted: boolean;
+    cancellationRequest?: boolean; // الحالة الجديدة للطلب المعلق
+    cancellationStatus?: 'none' | 'pending' | 'accepted' | 'rejected'; // حالة الرد
 }
 
 const MyAppointments = () => {
@@ -64,11 +66,9 @@ const MyAppointments = () => {
     const getDocImage = useCallback((item: AppointmentItem) => {
         if (item.docData?.image) return { uri: item.docData.image };
         
-        // البحث في قائمة الأطباء إذا لم تتوفر في الموعد
         const doctor = doctors.find(d => d._id === item.docData?._id);
         if (doctor?.image) return { uri: doctor.image };
 
-        // الصورة الافتراضية بناءً على ملفاتك
         return require('../../../assets/images/default_doctor.png');
     }, [doctors]);
 
@@ -108,13 +108,14 @@ const MyAppointments = () => {
         getUserAppointments();
     }, [getUserAppointments]);
 
-    const cancelAppointment = async (appointmentId: string) => {
+    // ✅ تحديث دالة الإلغاء لترسل طلب انتظار موافقة الدكتور
+    const requestCancelAppointment = async (appointmentId: string) => {
         if (loadingId) return;
 
-        Alert.alert("تأكيد", "هل تريد إلغاء هذا الموعد؟", [
+        Alert.alert("طلب إلغاء", "سيتم إرسال طلب إلغاء للطبيب للموافقة عليه، هل أنت متأكد؟", [
             { text: "تراجع", style: "cancel" },
             {
-                text: "تأكيد الإلغاء",
+                text: "إرسال الطلب",
                 style: "destructive",
                 onPress: async () => {
                     setLoadingId(appointmentId);
@@ -125,9 +126,16 @@ const MyAppointments = () => {
                             { headers: { token } }
                         );
                         if (data.success) {
+                            // تحديث الحالة محلياً لتظهر "بانتظار الموافقة"
                             setAppointments(prev => 
-                                prev.map(item => item._id === appointmentId ? { ...item, cancelled: true } : item)
+                                prev.map(item => item._id === appointmentId 
+                                    ? { ...item, cancellationRequest: true, cancellationStatus: 'pending' } 
+                                    : item
+                                )
                             );
+                            Alert.alert("تم الإرسال", "تم إرسال طلبك للطبيب، يرجى انتظار الرد.");
+                        } else {
+                            Alert.alert("تنبيه", data.message || "لا يمكن طلب الإلغاء حالياً");
                         }
                     } catch (err) {
                         Alert.alert("خطأ", "فشل الاتصال بالسيرفر");
@@ -168,9 +176,11 @@ const MyAppointments = () => {
                         <View style={styles.badgeCancelled}><Text style={styles.statusTextRed}>ملغي</Text></View>
                     ) : item.isCompleted ? (
                         <View style={styles.badgeCompleted}><Text style={styles.statusTextGreen}>مكتمل</Text></View>
+                    ) : item.cancellationRequest ? (
+                        <View style={styles.badgePending}><Text style={styles.statusTextOrange}>بانتظار الموافقة</Text></View>
                     ) : (
                         <TouchableOpacity
-                            onPress={() => cancelAppointment(item._id)}
+                            onPress={() => requestCancelAppointment(item._id)}
                             style={[styles.cancelBtn, loadingId === item._id && { opacity: 0.5 }]}
                             disabled={!!loadingId}
                         >
@@ -242,11 +252,13 @@ const styles = StyleSheet.create({
     speciality: { fontSize: 12, color: '#2dd4bf', marginTop: 2, fontWeight: '600' },
     dateTimeRow: { marginTop: 6, backgroundColor: '#334155', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
     tagText: { fontSize: 11, color: '#cbd5e1' },
-    actionWrapper: { minWidth: 70, alignItems: 'center' },
+    actionWrapper: { minWidth: 90, alignItems: 'center' },
     badgeCancelled: { backgroundColor: 'rgba(239, 68, 68, 0.1)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
     badgeCompleted: { backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-    statusTextRed: { color: '#f87171', fontSize: 12, fontWeight: 'bold' },
-    statusTextGreen: { color: '#34d399', fontSize: 12, fontWeight: 'bold' },
+    badgePending: { backgroundColor: 'rgba(245, 158, 11, 0.1)', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8 },
+    statusTextRed: { color: '#f87171', fontSize: 11, fontWeight: 'bold' },
+    statusTextGreen: { color: '#34d399', fontSize: 11, fontWeight: 'bold' },
+    statusTextOrange: { color: '#fbbf24', fontSize: 10, fontWeight: 'bold', textAlign: 'center' },
     cancelBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: '#450a0a', borderWidth: 1, borderColor: '#991b1b', minWidth: 65, alignItems: 'center' },
     cancelBtnText: { color: '#f87171', fontSize: 12, fontWeight: 'bold' },
     emptyContainer: { marginTop: 100, alignItems: 'center' },

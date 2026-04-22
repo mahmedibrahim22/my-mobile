@@ -194,7 +194,7 @@ const listAppointment = async (req, res) => {
     }
 }
 
-// --- إلغاء موعد وتحرير الـ Slot في جدول الطبيب ---
+// 🛡️ --- نظام الإلغاء المحدث (طلب إلغاء بدل إلغاء فوري) ---
 const cancelAppointment = async (req, res) => {
     try {
         const { userId, appointmentId } = req.body
@@ -203,22 +203,34 @@ const cancelAppointment = async (req, res) => {
         if (!appointmentData) return res.json({ success: false, message: "الموعد غير موجود" })
         if (String(appointmentData.userId) !== String(userId)) return res.json({ success: false, message: "غير مصرح لك بإلغاء هذا الحجز" })
 
-        await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true })
+        // 1️⃣ التحقق من الوقت: هل متبقي أقل من 20 دقيقة؟
+        const [day, month, year] = appointmentData.slotDate.split('_').map(Number);
         
-        const { docId, slotDate, slotTime } = appointmentData
-        const docData = await doctorModel.findById(docId)
-        let slots_booked = docData.slots_booked
-        
-        const cleanToCancel = normalizeTime(slotTime);
-        if (slots_booked[slotDate]) {
-            slots_booked[slotDate] = slots_booked[slotDate].filter(e => 
-                normalizeTime(e) !== cleanToCancel
-            );
-        }
-        
-        await doctorModel.findByIdAndUpdate(docId, { slots_booked })
+        // استخراج الوقت وتحويله لـ 24 ساعة (مثال: 06:20 PM -> 18:20)
+        let [time, modifier] = appointmentData.slotTime.split(' ');
+        let [hours, minutes] = time.split(':').map(Number);
+        if (modifier === 'PM' && hours < 12) hours += 12;
+        if (modifier === 'AM' && hours === 12) hours = 0;
 
-        res.json({ success: true, message: "تم إلغاء الموعد بنجاح" })
+        const appointmentDateTime = new Date(year, month - 1, day, hours, minutes);
+        const currentTime = new Date();
+        const timeDiff = (appointmentDateTime - currentTime) / (1000 * 60); // الفرق بالدقائق
+
+        if (timeDiff < 20 && timeDiff > 0) {
+            return res.json({ 
+                success: false, 
+                message: "عذراً، لا يمكن طلب الإلغاء قبل الموعد بأقل من 20 دقيقة" 
+            });
+        }
+
+        // 2️⃣ تحديث الحالة لطلب إلغاء معلق (Pending Approval)
+        await appointmentModel.findByIdAndUpdate(appointmentId, { 
+            cancellationRequest: true,
+            cancellationStatus: 'pending'
+        })
+
+        res.json({ success: true, message: "تم إرسال طلب الإلغاء للطبيب بنجاح، بانتظار الموافقة" })
+        
     } catch (error) {
         res.json({ success: false, message: error.message })
     }
