@@ -2,10 +2,16 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Doctor } from '../../types/doctor'; 
 
 interface DoctorState {
-    doctors: Doctor[];
+    doctors: Doctor[]; // قائمة الأطباء (للمستخدم/الأدمن)
     loading: boolean;
     error: string | null;
     lastUpdated: number | null; 
+    
+    // ✅ حقول المحاسبة والرسوم (خاصة ببيانات الدكتور المسجل دخوله)
+    totalFeesToAwn: number; 
+    isSuspended: boolean;
+    paymentStatus: 'none' | 'pending' | 'verified';
+    completedAppointmentsCount: number;
 }
 
 const initialState: DoctorState = {
@@ -13,6 +19,12 @@ const initialState: DoctorState = {
     loading: false,
     error: null,
     lastUpdated: null,
+    
+    // القيم الافتراضية للمحاسبة
+    totalFeesToAwn: 0,
+    isSuspended: false,
+    paymentStatus: 'none',
+    completedAppointmentsCount: 0
 };
 
 const doctorSlice = createSlice({
@@ -21,7 +33,6 @@ const doctorSlice = createSlice({
     reducers: {
         /**
          * 🩺 تحديث قائمة الأطباء بالكامل
-         * يتم التحقق من التغيير قبل التحديث لتقليل عمليات الـ Re-render
          */
         setDoctors: (state, action: PayloadAction<Doctor[]>) => {
             if (JSON.stringify(state.doctors) !== JSON.stringify(action.payload)) {
@@ -33,7 +44,7 @@ const doctorSlice = createSlice({
         },
 
         /**
-         * ➕ إضافة طبيب جديد للقائمة (في البداية)
+         * ➕ إضافة طبيب جديد للقائمة
          */
         addDoctor: (state, action: PayloadAction<Doctor>) => {
             state.doctors = [action.payload, ...state.doctors];
@@ -49,8 +60,25 @@ const doctorSlice = createSlice({
         },
 
         /**
+         * 💰 تحديث البيانات المالية للدكتور (رسوم عون)
+         * تُستدعى عند جلب الـ Dashboard Data
+         */
+        updateDoctorFinancials: (state, action: PayloadAction<{
+            totalFeesToAwn: number, 
+            isSuspended: boolean, 
+            paymentStatus: 'none' | 'pending' | 'verified',
+            completedAppointmentsCount?: number
+        }>) => {
+            state.totalFeesToAwn = action.payload.totalFeesToAwn;
+            state.isSuspended = action.payload.isSuspended;
+            state.paymentStatus = action.payload.paymentStatus;
+            if (action.payload.completedAppointmentsCount !== undefined) {
+                state.completedAppointmentsCount = action.payload.completedAppointmentsCount;
+            }
+        },
+
+        /**
          * 🔄 تحديث بيانات طبيب معين في الـ Store
-         * يدعم تحديث الحقول الجديدة مثل isAvailableNow و offDays
          */
         updateDoctorInStore: (state, action: PayloadAction<Partial<Doctor> & { _id: string }>) => {
             const index = state.doctors.findIndex(doc => doc._id === action.payload._id);
@@ -61,13 +89,12 @@ const doctorSlice = createSlice({
 
         /**
          * ✅ تحديث جداول المواعيد المتاحة (Slots)
-         * تم تحديث النوع ليتوافق مع Record<string, string[]> الموجود في Doctor Type
          */
         updateDoctorSlotsInStore: (state, action: PayloadAction<{ _id: string, slots: Record<string, string[]> }>) => {
             const index = state.doctors.findIndex(doc => doc._id === action.payload._id);
             if (index !== -1) {
                 state.doctors[index].slots_available = action.payload.slots;
-                state.lastUpdated = Date.now(); // تحديث التوقيت لإجبار الواجهة على قراءة المواعيد الجديدة
+                state.lastUpdated = Date.now();
             }
         },
 
@@ -79,13 +106,17 @@ const doctorSlice = createSlice({
         },
 
         /**
-         * 🧹 إعادة ضبط حالة الأطباء (عند تسجيل الخروج مثلاً)
+         * 🧹 إعادة ضبط حالة الأطباء (عند تسجيل الخروج)
          */
         resetDoctorState: (state) => {
             state.doctors = [];
             state.loading = false;
             state.error = null;
             state.lastUpdated = null;
+            state.totalFeesToAwn = 0;
+            state.isSuspended = false;
+            state.paymentStatus = 'none';
+            state.completedAppointmentsCount = 0;
         }
     },
 });
@@ -98,10 +129,17 @@ export const {
     updateDoctorInStore,
     updateDoctorSlotsInStore, 
     deleteDoctorFromStore,
-    resetDoctorState
+    resetDoctorState,
+    updateDoctorFinancials // المصدر الجديد للبيانات المالية
 } = doctorSlice.actions;
 
-// Selector لجلب الأطباء من الـ State
 export const selectAllDoctors = (state: { doctors: DoctorState }) => state.doctors.doctors;
+// Selector جديد لمعرفة حالة الحساب
+export const selectDoctorFinancials = (state: { doctors: DoctorState }) => ({
+    totalFeesToAwn: state.doctors.totalFeesToAwn,
+    isSuspended: state.doctors.isSuspended,
+    paymentStatus: state.doctors.paymentStatus,
+    completedAppointmentsCount: state.doctors.completedAppointmentsCount
+});
 
 export default doctorSlice.reducer;

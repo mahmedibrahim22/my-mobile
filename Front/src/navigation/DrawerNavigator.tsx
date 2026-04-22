@@ -1,5 +1,5 @@
 import React, { useContext, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Image, Alert } from 'react-native';
 import { 
   createDrawerNavigator, 
   DrawerContentComponentProps, 
@@ -7,10 +7,10 @@ import {
   DrawerItemList 
 } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 
 // ✅ استيراد الـ Types والـ Actions
-import { AppDispatch } from '../store/index';
+import { AppDispatch, RootState } from '../store/index';
 import { logout as logoutRedux, loadUserProfile } from '../store/slices/UserSlice';
 
 // ✅ استيراد الـ Contexts
@@ -29,6 +29,9 @@ const Drawer = createDrawerNavigator();
 const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   const dispatch = useDispatch<AppDispatch>();
   
+  // ✅ تم تصحيح المسمى من doctor إلى doctors ليتوافق مع الـ Store
+  const { isSuspended, totalFeesToAwn } = useSelector((state: RootState) => state.doctors);
+
   const context = useContext(AppContext);
   const adminCtx = useContext(AdminContext);
   const doctorCtx = useContext(DoctorContext);
@@ -84,6 +87,13 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
              </Text>
              <Text style={styles.userEmail}>{(userData as any)?.email || ''}</Text>
           </View>
+          
+          {role === 'doctor' && isSuspended && (
+             <View style={styles.debtAlertBadge}>
+                <Ionicons name="warning" size={14} color="#ef4444" />
+                <Text style={styles.debtAlertText}>مديونية: {totalFeesToAwn} EGP</Text>
+             </View>
+          )}
         </View>
 
         <View style={styles.menuLabelContainer}>
@@ -114,6 +124,9 @@ const DrawerNavigator = () => {
   const context = useContext(AppContext);
   const doctorCtx = useContext(DoctorContext);
   const adminCtx = useContext(AdminContext);
+  
+  // ✅ تم تصحيح المسمى من doctor إلى doctors
+  const { isSuspended } = useSelector((state: RootState) => state.doctors);
   
   const isDarkMode = context?.isDarkMode ?? true;
   const toggleTheme = context?.toggleTheme ?? (() => {});
@@ -148,7 +161,6 @@ const DrawerNavigator = () => {
         headerTitle: "", 
       })}
     >
-      {/* 🛠️ شاشات الأدمن كاملة كما كانت */}
       {token && role === 'admin' ? (
         <>
           <Drawer.Screen 
@@ -224,8 +236,6 @@ const DrawerNavigator = () => {
           />
         </>
       ) 
-      
-      /* 🩺 شاشات الطبيب (مع شاشة تسوية الرسوم الجديدة) */
       : token && role === 'doctor' ? (
         <>
           <Drawer.Screen 
@@ -249,27 +259,54 @@ const DrawerNavigator = () => {
             name="MyScheduleDrawer" 
             component={DoctorStack} 
             initialParams={{ screen: 'MySchedule' }}
+            listeners={() => ({
+                drawerItemPress: (e: any) => {
+                  if (isSuspended) {
+                    e.preventDefault();
+                    Alert.alert("تنبيه", "عذراً، يجب تسوية رسوم عون أولاً لتتمكن من إدارة جدول مواعيدك.");
+                  }
+                },
+            })}
             options={{ 
               drawerLabel: 'جدول مواعيدي',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="calendar-number-outline" size={20} color={color} />
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="calendar-number-outline" size={20} color={color} />,
+              drawerItemStyle: isSuspended ? { opacity: 0.5 } : {}
             }}
           />
           <Drawer.Screen 
             name="DoctorManageSlotsDrawer" 
             component={DoctorStack} 
             initialParams={{ screen: 'ManageSlots' }}
+            listeners={() => ({
+                drawerItemPress: (e: any) => {
+                  if (isSuspended) {
+                    e.preventDefault();
+                    Alert.alert("تنبيه", "يجب تسوية مديونية عون لإدارة ترتيب المواعيد.");
+                  }
+                },
+            })}
             options={{ 
               drawerLabel: 'ترتيب المواعيد',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="time-outline" size={20} color={color} />
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="time-outline" size={20} color={color} />,
+              drawerItemStyle: isSuspended ? { opacity: 0.5 } : {}
             }}
           />
           <Drawer.Screen 
             name="DoctorAppointmentsDrawer" 
             component={DoctorStack} 
             initialParams={{ screen: 'DoctorAppointments' }}
+            listeners={() => ({
+                drawerItemPress: (e: any) => {
+                  if (isSuspended) {
+                    e.preventDefault();
+                    Alert.alert("تنبيه", "لا يمكنك تصفح مواعيد المرضى حالياً. برجاء سداد الرسوم.");
+                  }
+                },
+            })}
             options={{ 
               drawerLabel: 'مواعيد المرضى',
-              drawerIcon: ({ color }: IconProps) => <Ionicons name="people-outline" size={20} color={color} />
+              drawerIcon: ({ color }: IconProps) => <Ionicons name="people-outline" size={20} color={color} />,
+              drawerItemStyle: isSuspended ? { opacity: 0.5 } : {}
             }}
           />
           <Drawer.Screen 
@@ -283,7 +320,6 @@ const DrawerNavigator = () => {
           />
         </>
       ) 
-      /* 👤 شاشات المستخدم */
       : (
         <>
           <Drawer.Screen 
@@ -320,7 +356,9 @@ const styles = StyleSheet.create({
   menuLabel: { fontSize: 10, fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: 1.5 },
   divider: { height: 1, marginHorizontal: 25, marginBottom: 15, opacity: 0.3 },
   logoutButton: { flexDirection: 'row-reverse', alignItems: 'center', padding: 20, borderTopWidth: 1, marginBottom: Platform.OS === 'ios' ? 30 : 10 },
-  logoutText: { color: '#f87171', fontSize: 14, fontWeight: '900', marginRight: 12, textTransform: 'uppercase' }
+  logoutText: { color: '#f87171', fontSize: 14, fontWeight: '900', marginRight: 12, textTransform: 'uppercase' },
+  debtAlertBadge: { flexDirection: 'row-reverse', alignItems: 'center', backgroundColor: 'rgba(239, 68, 68, 0.1)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, marginTop: 10 },
+  debtAlertText: { color: '#ef4444', fontSize: 11, fontWeight: '900', marginRight: 5 }
 });
 
 export default DrawerNavigator;

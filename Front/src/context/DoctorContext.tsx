@@ -2,6 +2,8 @@ import React, { createContext, useState, ReactNode, useEffect, useCallback } fro
 import axios from "axios";
 import { Alert } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDispatch } from 'react-redux';
+import { updateDoctorFinancials } from '../store/slices/DoctorSlice';
 import CONFIG from "../constants/Config"; 
 
 // 1. تعريف الـ Types لضمان استقرار التطبيق
@@ -21,7 +23,8 @@ interface DoctorContextType {
     completeAppointment: (appointmentId: string) => Promise<void>;
     cancelAppointment: (appointmentId: string) => Promise<void>;
     changeAvailability: () => Promise<void>;
-    // ✅ تحديث الـ Signature لتستقبل المعاملات الجديدة للجدولة المتقدمة
+    // ✅ دوال المحاسبة والرسوم الجديدة
+    uploadPaymentScreenshot: (file: any) => Promise<boolean>;
     updateSlots: (slots: any, duration: number, breakTime: number, extraData: any) => Promise<boolean>; 
     logout: () => void;
 }
@@ -31,6 +34,7 @@ export const DoctorContext = createContext<DoctorContextType | null>(null);
 export const DoctorContextProvider = ({ children }: { children: ReactNode }) => {
     
     const backendUrl = CONFIG.BACKEND_URL; 
+    const dispatch = useDispatch();
     
     const [dToken, setDToken] = useState<string>("");
     const [appointments, setAppointments] = useState<any[]>([]);
@@ -60,7 +64,7 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
         }
     }, [backendUrl, dToken, getHeaders]);
 
-    // جلب بيانات الإحصائيات (Dashboard)
+    // جلب بيانات الإحصائيات (Dashboard) وتحديث الـ Redux بالمديونية
     const getDashData = useCallback(async (token?: string) => {
         const currentToken = token || dToken;
         if (!currentToken) return;
@@ -68,11 +72,19 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
             const { data } = await axios.get(`${backendUrl}${CONFIG.API_PREFIX}/doctor/dashboard`, getHeaders(currentToken));
             if (data.success) {
                 setDashData(data.dashData);
+                
+                // ✅ تحديث الريدكس فوراً بالقيم المالية والعداد لضمان تزامن الواجهة
+                dispatch(updateDoctorFinancials({
+                    totalFeesToAwn: data.dashData.totalFeesToAwn,
+                    isSuspended: data.dashData.isSuspended,
+                    paymentStatus: data.dashData.paymentStatus,
+                    completedAppointmentsCount: data.dashData.completedAppointmentsCount
+                }));
             }
         } catch (error: any) {
             console.log("❌ GetDash Error:", error.response?.data?.message || error.message);
         }
-    }, [backendUrl, dToken, getHeaders]);
+    }, [backendUrl, dToken, getHeaders, dispatch]);
 
     // جلب المواعيد
     const getAppointments = useCallback(async (token?: string) => {
@@ -97,7 +109,6 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
                 
                 if (storedToken && userRole === 'doctor') {
                     setDToken(storedToken);
-                    // تنفيذ الجلب المتوازي لتسريع تشغيل التطبيق
                     await Promise.all([
                         getProfileData(storedToken),
                         getDashData(storedToken),
@@ -131,13 +142,13 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
         }
     };
 
-    // إتمام موعد
+    // إتمام موعد (وتحديث المحاسبة)
     const completeAppointment = async (appointmentId: string) => {
         try {
             const { data } = await axios.post(`${backendUrl}${CONFIG.API_PREFIX}/doctor/complete-appointment`, { appointmentId }, getHeaders());
             if (data.success) {
-                Alert.alert("تم بنجاح", data.message);
-                getDashData();
+                Alert.alert("عَوْن", data.message);
+                await getDashData(); // تحديث المديونية فوراً بعد كل كشف
                 getAppointments(); 
             } else {
                 Alert.alert("تنبيه", data.message);
@@ -177,7 +188,38 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
         }
     };
 
-    // ✅ دالة تحديث جدول المواعيد - ترسل كافة البيانات المجمعة من واجهة الإعدادات
+    // ✅ رفع إثبات دفع الرسوم (Screenshot)
+    const uploadPaymentScreenshot = async (file: any) => {
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const { data } = await axios.post(
+                `${backendUrl}${CONFIG.API_PREFIX}/doctor/upload-payment`,
+                formData,
+                {
+                    headers: {
+                        ...getHeaders().headers,
+                        'Content-Type': 'multipart/form-data',
+                    },
+                }
+            );
+
+            if (data.success) {
+                Alert.alert("نجاح", data.message);
+                await getDashData();
+                return true;
+            } else {
+                Alert.alert("فشل", data.message);
+                return false;
+            }
+        } catch (error: any) {
+            Alert.alert("خطأ", error.response?.data?.message || "فشل في رفع الصورة");
+            return false;
+        }
+    };
+
+    // تحديث جدول المواعيد
     const updateSlots = async (slots: any, duration: number, breakTime: number, extraData: any) => {
         try {
             const { data } = await axios.post(
@@ -240,6 +282,7 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
         setProfileData, 
         getProfileData,
         changeAvailability, 
+        uploadPaymentScreenshot,
         updateSlots, 
         logout
     };

@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { DoctorContext } from '../../../context/DoctorContext';
 import { AppContext } from '../../../context/AppContext';
+import { useDispatch } from 'react-redux'; // ✅ إضافة الريدكس
+import { updateDoctorFinancials } from '../../../store/slices/DoctorSlice'; // ✅ الأكشن الجديد
 import axiosInstance from '../../../api/axiosInstance';
 import CONFIG from '../../../constants/Config';
 import { useNavigation } from '@react-navigation/native';
@@ -50,8 +52,8 @@ const DoctorDashboard = () => {
     const doctorCtx = useContext(DoctorContext);
     const appCtx = useContext(AppContext);
     const navigation = useNavigation<any>();
+    const dispatch = useDispatch(); // ✅
     
-    // ✅ تحديد وضع الإضاءة
     const isDarkMode = appCtx?.isDarkMode ?? true;
 
     const [dashData, setDashData] = useState<DashData | null>(null);
@@ -61,7 +63,6 @@ const DoctorDashboard = () => {
     const dToken = doctorCtx?.dToken;
     const currency = appCtx?.currency || 'EGP';
 
-    // ✅ الألوان الديناميكية
     const theme = {
         bg: isDarkMode ? '#050811' : '#f1f5f9',
         card: isDarkMode ? '#0F172A' : '#ffffff',
@@ -82,7 +83,14 @@ const DoctorDashboard = () => {
             
             if (data.success) {
                 setDashData(data.dashData);
-                // تحديث بيانات الطبيب في الكونتيكست لضمان تزامن المديونية في السايد بار
+                
+                // ✅ تحديث الريدكس فوراً لضمان تزامن السايد بار والقيود
+                dispatch(updateDoctorFinancials({
+                    totalFeesToAwn: data.dashData.totalFeesToAwn,
+                    isSuspended: data.dashData.isSuspended,
+                    paymentStatus: data.dashData.paymentStatus
+                }));
+
                 if (doctorCtx?.setDashData) {
                     doctorCtx.setDashData(data.dashData);
                 }
@@ -93,7 +101,7 @@ const DoctorDashboard = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [dToken]);
+    }, [dToken, dispatch]);
 
     useEffect(() => {
         if (dToken) getDashData();
@@ -121,8 +129,8 @@ const DoctorDashboard = () => {
                                 { headers: { [CONFIG.HEADERS.DOCTOR_TOKEN]: dToken } }
                             );
                             if (data.success) {
-                                Alert.alert('تم', data.message);
-                                getDashData();
+                                Alert.alert('عَوْن', data.message);
+                                getDashData(); // تحديث المديونية فوراً بعد كل كشف
                             }
                         } catch { 
                             Alert.alert('خطأ', 'فشل في تحديث الحالة'); 
@@ -141,9 +149,8 @@ const DoctorDashboard = () => {
         } catch { return slotDate; }
     };
 
-    // ✅ تحسين منطق التنبيه بالمديونية والوقت المتأخر
-    const isLateTime = new Date().getHours() >= 23;
-    const showDebtNotice = (dashData?.totalFeesToAwn ?? 0) > 0 || isLateTime;
+    // ✅ التنبيه يعتمد على مديونية حقيقية أو حالة إيقاف من السيرفر
+    const showDebtNotice = (dashData?.totalFeesToAwn ?? 0) > 0 || dashData?.isSuspended;
 
     if (loading && !dashData) return (
         <View style={[styles.center, { backgroundColor: theme.bg }]}><ActivityIndicator size="large" color={theme.accent} /></View>
@@ -156,7 +163,7 @@ const DoctorDashboard = () => {
                     <Text style={styles.debtText}>
                         {dashData?.paymentStatus === 'pending' 
                             ? "جاري مراجعة إيصال السداد من قبل الإدارة..."
-                            : "انتهى يوم عمل ولم يتم سداد رسوم عون. سدد الآن لتتمكن من متابعة عملك."}
+                            : "لديك مديونية مستحقة لرسوم عون. سدد الآن لتتمكن من رؤية بيانات الحجوزات التالية."}
                     </Text>
                     {dashData?.paymentStatus !== 'pending' && (
                         <TouchableOpacity 
@@ -218,9 +225,9 @@ const DoctorDashboard = () => {
                     <View style={styles.emptyState}><Text style={[styles.emptyText, { color: theme.textSub }]}>لا توجد مواعيد حالياً</Text></View>
                 ) : (
                     dashData.latestAppointments.map((item, index) => {
-                        // ✅ منطق التغبيش (Blur): إذا كان هناك مديونية أو ليس هو الدور التالي
+                        // ✅ تغبيش البيانات لو الحساب موقوف أو مش هو الدور التالي
                         const isNotNext = dashData.nextAppointmentId !== null && item._id !== dashData.nextAppointmentId;
-                        const isBlurred = (showDebtNotice || isNotNext) && !item.isCompleted && !item.cancelled;
+                        const isBlurred = (dashData.isSuspended || isNotNext) && !item.isCompleted && !item.cancelled;
                         
                         return (
                             <View key={item._id || index} style={[styles.appointmentCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -267,14 +274,14 @@ const DoctorDashboard = () => {
                                     <View style={[styles.blurOverlay, { backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.95)' }]}>
                                         <Ionicons name="lock-closed" size={24} color={theme.accent} style={{ marginBottom: 8 }} />
                                         <Text style={[styles.blurText, { color: theme.textMain }]}>
-                                            {showDebtNotice ? "يجب سداد مديونية عون أولاً" : "أنهِ الكشف السابق لرؤية البيانات"}
+                                            {dashData.isSuspended ? "يجب سداد مديونية عون أولاً" : "أنهِ الكشف السابق لرؤية بيانات المريض التالي"}
                                         </Text>
-                                        {showDebtNotice && (
+                                        {dashData.isSuspended && (
                                             <TouchableOpacity 
                                                 onPress={() => navigation.navigate('SettleFeesDrawer')}
                                                 style={{ marginTop: 10, borderBottomWidth: 1, borderBottomColor: theme.accent }}
                                             >
-                                                <Text style={{ color: theme.accent, fontSize: 11, fontWeight: '900' }}>انتقل لصفحة السداد</Text>
+                                                <Text style={{ color: theme.accent, fontSize: 12, fontWeight: '900' }}>انتقل لصفحة السداد</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
