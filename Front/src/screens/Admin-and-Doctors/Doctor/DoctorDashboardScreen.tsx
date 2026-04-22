@@ -82,7 +82,15 @@ const DoctorDashboard = () => {
             });
             
             if (data.success) {
-                setDashData(data.dashData);
+                // ✅ تعديل المنطق: فلترة المواعيد لتظهر المكتملة فقط في الواجهة (أحدث المواعيد المنتهية)
+                const processedDashData = { ...data.dashData };
+                if (processedDashData.latestAppointments) {
+                    processedDashData.latestAppointments = processedDashData.latestAppointments
+                        .filter((app: LatestAppointment) => app.isCompleted === true)
+                        .reverse();
+                }
+
+                setDashData(processedDashData);
                 
                 // ✅ تحديث الريدكس فوراً لضمان تزامن السايد بار والقيود
                 dispatch(updateDoctorFinancials({
@@ -92,7 +100,7 @@ const DoctorDashboard = () => {
                 }));
 
                 if (doctorCtx?.setDashData) {
-                    doctorCtx.setDashData(data.dashData);
+                    doctorCtx.setDashData(processedDashData);
                 }
             }
         } catch (error: any) {
@@ -101,7 +109,7 @@ const DoctorDashboard = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [dToken, dispatch]);
+    }, [dToken, dispatch, doctorCtx]);
 
     useEffect(() => {
         if (dToken) getDashData();
@@ -218,14 +226,15 @@ const DoctorDashboard = () => {
                 {/* الحجوزات الأخيرة */}
                 <View style={styles.sectionHeader}>
                     <TouchableOpacity onPress={getDashData}><Text style={[styles.refreshBtn, { color: theme.accent }]}>تحديث القائمة</Text></TouchableOpacity>
-                    <Text style={[styles.sectionTitle, { color: theme.textMain }]}>مواعيد اليوم</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.textMain }]}>آخر المواعيد المكتملة</Text>
                 </View>
 
                 {!dashData || dashData.latestAppointments.length === 0 ? (
-                    <View style={styles.emptyState}><Text style={[styles.emptyText, { color: theme.textSub }]}>لا توجد مواعيد حالياً</Text></View>
+                    <View style={styles.emptyState}><Text style={[styles.emptyText, { color: theme.textSub }]}>لا توجد مواعيد مكتملة حالياً</Text></View>
                 ) : (
                     dashData.latestAppointments.map((item, index) => {
-                        // ✅ تغبيش البيانات لو الحساب موقوف أو مش هو الدور التالي
+                        // ✅ التغبيش يطبق فقط لو الحساب موقوف أو مش هو الدور التالي للحجوزات "غير المكتملة"
+                        // في حالتنا هنا، نعرض المكتمل فقط، لذا الـ Blur لن يظهر للمكتمل إلا لو أردت قفل السجل بالكامل.
                         const isNotNext = dashData.nextAppointmentId !== null && item._id !== dashData.nextAppointmentId;
                         const isBlurred = (dashData.isSuspended || isNotNext) && !item.isCompleted && !item.cancelled;
                         

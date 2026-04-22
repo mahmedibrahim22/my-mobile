@@ -192,9 +192,10 @@ const DoctorAppointments = () => {
           <View style={styles.infoDivider} />
           <View style={styles.infoItem}>
             <Text style={styles.infoValue}>{localSlotDateFormat(item.slotDate)}</Text>
-            <div style={styles.timeTag}>
+            {/* ✅ تم تغيير div إلى View هنا لإصلاح الـ Invariant Violation */}
+            <View style={styles.timeTag}>
               <Text style={styles.timeTagText}>{item.slotTime}</Text>
-            </div>
+            </View>
           </View>
         </View>
 
@@ -243,7 +244,6 @@ const DoctorAppointments = () => {
   );
 };
 
-// التنسيقات (تم الحفاظ عليها كاملة)
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a1224' },
   header: { padding: 25, alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: '#1e293b' },

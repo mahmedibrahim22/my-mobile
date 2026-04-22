@@ -71,7 +71,15 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
         try {
             const { data } = await axios.get(`${backendUrl}${CONFIG.API_PREFIX}/doctor/dashboard`, getHeaders(currentToken));
             if (data.success) {
-                setDashData(data.dashData);
+                // ✅ تعديل: فلترة المواعيد لتظهر المكتملة فقط في قائمة الداشبورد وترتيبها من الأحدث للأقدم
+                const rawDashData = data.dashData;
+                if (rawDashData.latestAppointments) {
+                    rawDashData.latestAppointments = rawDashData.latestAppointments
+                        .filter((app: any) => app.isCompleted === true)
+                        .reverse();
+                }
+
+                setDashData(rawDashData);
                 
                 // ✅ تحديث الريدكس فوراً بالقيم المالية والعداد لضمان تزامن الواجهة
                 dispatch(updateDoctorFinancials({
@@ -148,7 +156,7 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
             const { data } = await axios.post(`${backendUrl}${CONFIG.API_PREFIX}/doctor/complete-appointment`, { appointmentId }, getHeaders());
             if (data.success) {
                 Alert.alert("عَوْن", data.message);
-                await getDashData(); // تحديث المديونية فوراً بعد كل كشف
+                await getDashData(); // تحديث المديونية والمواعيد المكتملة في الداشبورد فوراً
                 getAppointments(); 
             } else {
                 Alert.alert("تنبيه", data.message);
