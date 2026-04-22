@@ -43,7 +43,6 @@ const DoctorAppointments = () => {
 
   const dToken = doctorCtx?.dToken || '';
   
-  // ✅ إصلاح dependencies الخاص بـ useMemo
   const appointments = useMemo(
     () => (doctorCtx?.appointments as Appointment[]) || [],
     [doctorCtx?.appointments]
@@ -51,7 +50,7 @@ const DoctorAppointments = () => {
 
   const dashData = doctorCtx?.dashData;
   const getAppointments = doctorCtx?.getAppointments;
-  const cancelAppointment = doctorCtx?.cancelAppointment;
+  const handleCancellationRequest = doctorCtx?.handleCancellationRequest;
   const completeAppointment = doctorCtx?.completeAppointment;
   const getDashData = doctorCtx?.getDashData;
 
@@ -86,21 +85,23 @@ const DoctorAppointments = () => {
     }
   };
 
-  const handleCancelResponse = async (id: string, accept: boolean) => {
+  // ✅ تحديث: دالة معالجة الرد على الإلغاء (قبول/رفض)
+  const onHandleCancelResponse = async (id: string, accept: boolean) => {
+    const action = accept ? 'accepted' : 'rejected';
     const msg = accept
       ? 'هل أنت موافق على إلغاء هذا الموعد؟'
-      : 'هل تريد رفض طلب الإلغاء؟';
+      : 'هل تريد رفض طلب الإلغاء وإبقاء الموعد قائماً؟';
 
     Alert.alert(
-      accept ? 'موافقة على الإلغاء' : 'رفض الإلغاء',
+      accept ? 'موافقة على الإلغاء' : 'رفض طلب الإلغاء',
       msg,
       [
         { text: 'تراجع', style: 'cancel' },
         {
           text: 'تأكيد',
           onPress: async () => {
-            if (cancelAppointment) {
-              await cancelAppointment(id);
+            if (handleCancellationRequest) {
+              await handleCancellationRequest(id, action);
               getDashData?.();
             }
           }
@@ -129,24 +130,24 @@ const DoctorAppointments = () => {
     const isPast = item.cancelled || item.isCompleted;
     const shouldBlur = !isNext && !isPast;
 
-    // ✅ استخدام calculateAge لحل إيرور ESLint
     const age = item.patientAge || (item.userData?.dob && calculateAge ? calculateAge(item.userData.dob) : '24');
 
     return (
       <View style={styles.appointmentCard}>
         <View style={styles.cardHeader}>
           <View style={styles.actionContainer}>
-            {item.cancellationRequest && !item.cancelled ? (
+            {/* ✅ تحديث اللوجيك: عرض أزرار القرار عند وجود طلب إلغاء */}
+            {item.cancellationRequest && !item.cancelled && !item.isCompleted ? (
               <View style={styles.btnGroup}>
                 <TouchableOpacity
-                  onPress={() => handleCancelResponse(item._id, false)}
+                  onPress={() => onHandleCancelResponse(item._id, false)}
                   style={styles.rejectBtn}
                 >
-                  <Text style={styles.rejectBtnText}>رفض</Text>
+                  <Text style={styles.rejectBtnText}>رفض الإلغاء</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={() => handleCancelResponse(item._id, true)}
+                  onPress={() => onHandleCancelResponse(item._id, true)}
                   style={styles.acceptBtn}
                 >
                   <Text style={styles.acceptBtnText}>قبول الإلغاء</Text>
@@ -192,7 +193,6 @@ const DoctorAppointments = () => {
           <View style={styles.infoDivider} />
           <View style={styles.infoItem}>
             <Text style={styles.infoValue}>{localSlotDateFormat(item.slotDate)}</Text>
-            {/* ✅ تم تغيير div إلى View هنا لإصلاح الـ Invariant Violation */}
             <View style={styles.timeTag}>
               <Text style={styles.timeTagText}>{item.slotTime}</Text>
             </View>

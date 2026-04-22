@@ -11,7 +11,7 @@ import { useColorScheme, Appearance } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axiosInstance from "../api/axiosInstance";
 import CONFIG from "../constants/Config";
-import { Doctor } from "../types/doctor"; // استيراد التعريفات الجديدة
+import { Doctor } from "../types/doctor"; 
 
 // --- الواجهات (Interfaces) ---
 
@@ -31,7 +31,7 @@ interface UserData {
 }
 
 interface AppContextType {
-    doctors: Doctor[]; // استخدام نوع Doctor المحدث
+    doctors: Doctor[];
     getDoctorsData: () => Promise<void>;
     userData: UserData | null;
     setUserData: React.Dispatch<React.SetStateAction<UserData | null>>;
@@ -48,7 +48,7 @@ interface AppContextType {
     toggleTheme: () => void;
     logout: () => Promise<void>;
     isLoading: boolean;
-    // ✅ الحالات الجديدة للتحكم في إشعارات الحجز
+    // ✅ الحالات المحدثة للتحكم في دورة حياة الحجز
     bookingSuccess: boolean;
     setBookingSuccess: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -70,19 +70,18 @@ export const AppContextProvider = ({ children }: { children: ReactNode }) => {
     const [isDarkMode, setIsDarkMode] = useState<boolean>(systemColorScheme === 'dark');
     const [isLoading, setIsLoading] = useState<boolean>(true);
     
-    // ✅ حالة نجاح عملية الحجز
+    // ✅ حالة نجاح عملية الحجز وإشعارات التحديث
     const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
 
     const isFetchingProfile = useRef(false);
 
     /**
-     * 🩺 جلب قائمة الأطباء (محدثة لدعم منطق الإتاحة الجديد)
+     * 🩺 جلب قائمة الأطباء 
      */
     const getDoctorsData = useCallback(async () => {
         try {
             const { data } = await axiosInstance.get(`/doctor/list`);
             if (data?.success) {
-                // الباك إند الآن يرسل حقل isAvailableNow محسوباً لكل طبيب
                 setDoctors(data.doctors);
             }
         } catch (error: any) {
@@ -106,7 +105,7 @@ export const AppContextProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     /**
-     * 👤 جلب بيانات البروفايل
+     * 👤 جلب بيانات البروفايل (تعديل لضمان جلب حالات الحجز الجديدة للمريض)
      */
     const loadUserProfileData = useCallback(async () => {
         if (!token || isFetchingProfile.current) return;
@@ -249,7 +248,7 @@ export const AppContextProvider = ({ children }: { children: ReactNode }) => {
         } catch { return 0; }
     }, []);
 
-    // --- تجميع القيم الممررة للمزود ---
+    // --- تجميع القيم الممررة للمزود (Memoized) ---
     const value = useMemo(() => ({
         doctors,
         getDoctorsData,
@@ -268,7 +267,7 @@ export const AppContextProvider = ({ children }: { children: ReactNode }) => {
         toggleTheme,
         logout,
         isLoading,
-        // ✅ تمرير الحالات الجديدة للـ Context
+        // ✅ القيم الجديدة
         bookingSuccess,
         setBookingSuccess
     }), [

@@ -39,7 +39,7 @@ const specialityTranslate: Record<string, string> = {
   "Ophthalmologist": "رمد",
   "Urologist": "مسالك",
   "Lab Consultant": "تحاليل",
-  "Physiotherapist": "علاج طيبعي",
+  "Physiotherapist": "علاج طبيعي",
 };
 
 const AppointmentScreen = () => {
@@ -66,7 +66,6 @@ const AppointmentScreen = () => {
   const [illnessImage, setIllnessImage] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  // حالة التنبيه المخصص
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertMsg, setAlertMsg] = useState("");
 
@@ -116,7 +115,7 @@ const AppointmentScreen = () => {
     };
 
     let current = parseTime(startTime);
-    const end = parseTime(endTime);
+    let end = parseTime(endTime);
     const bStart = breakStart ? parseTime(breakStart) : null;
     const bEnd = (bStart && breakDuration) ? new Date(bStart.getTime() + breakDuration * 60 * 1000) : null;
 
@@ -254,7 +253,7 @@ const AppointmentScreen = () => {
 
       if (data.success) {
         if(setBookingSuccess) {
-           setBookingSuccess(true);
+            setBookingSuccess(true);
         }
         navigation.reset({
           index: 0,

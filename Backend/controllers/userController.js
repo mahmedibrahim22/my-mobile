@@ -234,6 +234,7 @@ const cancelAppointment = async (req, res) => {
         }
 
         // 2️⃣ تحديث الحالة لطلب إلغاء معلق (Pending Approval)
+        // بدلاً من حذف الحجز من slots_booked فوراً، ننتظر موافقة الطبيب
         await appointmentModel.findByIdAndUpdate(appointmentId, { 
             cancellationRequest: true,
             cancellationStatus: 'pending'

@@ -34,7 +34,7 @@ interface LatestAppointment {
     illnessDescription: string;
     cancelled: boolean;
     isCompleted: boolean;
-    cancellationRequest: boolean; // ✅ إضافة حقل طلب الإلغاء
+    cancellationRequest: boolean; 
     cancellationStatus: 'pending' | 'accepted' | 'rejected' | 'none';
     amount?: number;
 }
@@ -86,7 +86,7 @@ const DoctorDashboard = () => {
             if (data.success) {
                 const processedDashData = { ...data.dashData };
                 if (processedDashData.latestAppointments) {
-                    // ✅ تم تعديل الفلترة لتشمل المكتملة OR التي بها طلب إلغاء نشط
+                    // ✅ الفلترة: تعرض المكتملة أو التي بها طلب إلغاء نشط ليتمكن الدكتور من اتخاذ قرار
                     processedDashData.latestAppointments = processedDashData.latestAppointments
                         .filter((app: LatestAppointment) => app.isCompleted === true || app.cancellationRequest === true)
                         .reverse();
@@ -110,7 +110,7 @@ const DoctorDashboard = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [dToken, dispatch]);
+    }, [dToken, dispatch, doctorCtx]);
 
     useEffect(() => {
         if (dToken) {
@@ -123,20 +123,29 @@ const DoctorDashboard = () => {
         getDashData();
     };
 
-    // ✅ تحديث الدالة لتشمل قبول أو رفض الإلغاء
+    // ✅ دالة قبول أو رفض طلب الإلغاء
     const handleCancellationAction = async (id: string, action: 'accepted' | 'rejected') => {
-        try {
-            const { data } = await axiosInstance.post('/doctor/appointment-cancel', 
-                { appointmentId: id, action }, 
-                { headers: { [CONFIG.HEADERS.DOCTOR_TOKEN]: dToken } }
-            );
-            if (data.success) {
-                Alert.alert('عَوْن', data.message);
-                getDashData();
+        const confirmMsg = action === 'accepted' ? 'هل أنت موافق على قبول إلغاء هذا الحجز؟' : 'هل تريد رفض طلب الإلغاء؟';
+        Alert.alert('تأكيد الإجراء', confirmMsg, [
+            { text: 'تراجع', style: 'cancel' },
+            {
+                text: 'تأكيد',
+                onPress: async () => {
+                    try {
+                        const { data } = await axiosInstance.post('/doctor/appointment-cancel', 
+                            { appointmentId: id, action }, 
+                            { headers: { [CONFIG.HEADERS.DOCTOR_TOKEN]: dToken } }
+                        );
+                        if (data.success) {
+                            Alert.alert('عَوْن', data.message);
+                            getDashData();
+                        }
+                    } catch {
+                        Alert.alert('خطأ', 'فشل تنفيذ الإجراء');
+                    }
+                }
             }
-        } catch {
-            Alert.alert('خطأ', 'فشل تنفيذ الإجراء');
-        }
+        ]);
     };
 
     const handleStatusUpdate = (id: string, action: 'cancel' | 'complete') => {
@@ -151,6 +160,7 @@ const DoctorDashboard = () => {
                     onPress: async () => {
                         try {
                             const endpoint = isCancel ? '/doctor/appointment-cancel' : '/doctor/complete-appointment';
+                            // عند الإلغاء اليدوي من الدكتور، نعتبرها 'accepted' مباشرة
                             const payload = isCancel ? { appointmentId: id, action: 'accepted' } : { appointmentId: id };
                             const { data } = await axiosInstance.post(endpoint, payload, 
                                 { headers: { [CONFIG.HEADERS.DOCTOR_TOKEN]: dToken } }
@@ -245,7 +255,7 @@ const DoctorDashboard = () => {
                                         ) : item.isCompleted ? (
                                             <Text style={[styles.statusTag, { color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>مكتمل</Text>
                                         ) : item.cancellationRequest ? (
-                                            // ✅ حالة طلب الإلغاء: يظهر قبول أو رفض
+                                            // ✅ حالة طلب الإلغاء: يظهر زر قبول (صح) وزر رفض (خطأ)
                                             <View style={styles.btnRow}>
                                                 <TouchableOpacity onPress={() => handleCancellationAction(item._id, 'rejected')} style={[styles.iconBtn, { borderColor: '#ef4444' }]}>
                                                     <Ionicons name="close-circle" size={20} color="#ef4444" />

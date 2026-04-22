@@ -21,7 +21,8 @@ interface DoctorContextType {
     setProfileData: (data: any) => void;
     getProfileData: (token?: string) => Promise<void>;
     completeAppointment: (appointmentId: string) => Promise<void>;
-    cancelAppointment: (appointmentId: string) => Promise<void>;
+    // ✅ تحديث: دالة معالجة طلب الإلغاء (قبول أو رفض)
+    handleCancellationRequest: (appointmentId: string, action: 'accepted' | 'rejected') => Promise<void>;
     changeAvailability: () => Promise<void>;
     // ✅ دوال المحاسبة والرسوم الجديدة
     uploadPaymentScreenshot: (file: any) => Promise<boolean>;
@@ -166,19 +167,20 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
         }
     };
 
-    // إلغاء موعد
-    const cancelAppointment = async (appointmentId: string) => {
+    // ✅ دالة معالجة طلب الإلغاء (قبول أو رفض من طرف الدكتور)
+    const handleCancellationRequest = async (appointmentId: string, action: 'accepted' | 'rejected') => {
         try {
-            const { data } = await axios.post(`${backendUrl}${CONFIG.API_PREFIX}/doctor/cancel-appointment`, { appointmentId }, getHeaders());
+            const { data } = await axios.post(`${backendUrl}${CONFIG.API_PREFIX}/doctor/cancel-appointment`, { appointmentId, action }, getHeaders());
             if (data.success) {
-                Alert.alert("تم الإلغاء", data.message);
+                const alertTitle = action === 'accepted' ? "تم قبول الإلغاء" : "تم رفض الإلغاء";
+                Alert.alert(alertTitle, data.message);
                 getDashData();
                 getAppointments();
             } else {
                 Alert.alert("تنبيه", data.message);
             }
         } catch (error: any) {
-            Alert.alert("خطأ", error.response?.data?.message || "فشل في إلغاء الموعد");
+            Alert.alert("خطأ", error.response?.data?.message || "فشل في معالجة طلب الإلغاء");
         }
     };
 
@@ -285,7 +287,7 @@ export const DoctorContextProvider = ({ children }: { children: ReactNode }) => 
         dashData, 
         setDashData,
         completeAppointment, 
-        cancelAppointment,
+        handleCancellationRequest, // الاسم المحدث ليتوافق مع اللوجيك الجديد
         profileData, 
         setProfileData, 
         getProfileData,

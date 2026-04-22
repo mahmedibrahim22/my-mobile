@@ -108,7 +108,7 @@ const doctorDashboard = async (req, res) => {
 
         const patientIds = [...new Set(appointments.map(item => item.userId.toString()))];
 
-        // ✅ تحسين جلب الحجز القادم: استبعاد أي حجز ملغي أو تم طلب إلغاؤه
+        // ✅ تحسين جلب الحجز القادم: استبعاد أي حجز ملغي أو تم طلب إلغاؤه حالياً
         const activeAppointments = appointments.filter(a => !a.cancelled && !a.isCompleted && !a.cancellationRequest);
         const nextAppointmentId = activeAppointments.length > 0 ? activeAppointments[0]._id : null;
 
@@ -137,6 +137,7 @@ const appointmentsDoctor = async (req, res) => {
         const { docId } = req.body;
         const appointments = await appointmentModel.find({ docId });
         
+        // جلب أول حجز نشط (غير مكتمل وغير ملغي) لفك الـ Blur عنه في الموبايل
         const activeSlots = appointments.filter(a => !a.isCompleted && !a.cancelled);
         const nextId = activeSlots.length > 0 ? activeSlots[0]._id : null;
 
@@ -153,12 +154,17 @@ const appointmentComplete = async (req, res) => {
         const appointmentData = await appointmentModel.findById(appointmentId);
 
         if (appointmentData && appointmentData.docId.toString() === docId) {
-            await appointmentModel.findByIdAndUpdate(appointmentId, { isCompleted: true });
+            // تحديث حالة الحجز واكتماله
+            await appointmentModel.findByIdAndUpdate(appointmentId, { 
+                isCompleted: true,
+                cancellationRequest: false // لضمان إغلاق أي طلب معلق بالخطأ
+            });
 
             const doctor = await doctorModel.findById(docId);
             let newCompletedCount = (doctor.completedAppointmentsCount || 0) + 1;
             let newFees = doctor.totalFeesToAwn || 0;
 
+            // لوجيك الرسوم الخاص بسيستم AWN
             if (newCompletedCount > 7) {
                 newFees += 10;
             }
@@ -176,22 +182,22 @@ const appointmentComplete = async (req, res) => {
     }
 }
 
-// 🛡️ إدارة إلغاء الموعد (موافقة أو رفض)
+// 🛡️ إدارة إلغاء الموعد (موافقة أو رفض من الطبيب)
 const appointmentCancel = async (req, res) => {
     try {
-        const { docId, appointmentId, action } = req.body; 
+        const { docId, appointmentId, action } = req.body; // action: 'accepted' OR 'rejected'
         const appointmentData = await appointmentModel.findById(appointmentId);
 
         if (appointmentData && appointmentData.docId.toString() === docId) {
             if (action === 'accepted') {
-                // ✅ تحديث الحجز ليكون ملغياً نهائياً وإغلاق الطلب
+                // ✅ 1. تحديث الحجز ليكون ملغياً نهائياً وإغلاق الطلب
                 await appointmentModel.findByIdAndUpdate(appointmentId, { 
                     cancelled: true, 
                     cancellationStatus: 'accepted',
                     cancellationRequest: false
                 });
 
-                // تحرير الـ Slot من جدول الطبيب
+                // ✅ 2. تحرير الـ Slot من جدول الطبيب (slots_booked) لفتحه لمريض آخر
                 const { slotDate, slotTime } = appointmentData;
                 const docData = await doctorModel.findById(docId);
                 let slots_booked = docData.slots_booked;
@@ -207,7 +213,7 @@ const appointmentCancel = async (req, res) => {
 
                 return res.json({ success: true, message: "تم قبول الإلغاء وتحرير الموعد بنجاح" });
             } else {
-                // في حالة الرفض: يعود الموعد كما كان ويختفي طلب الإلغاء
+                // ❌ في حالة الرفض: يعود الموعد كما كان ويختفي طلب الإلغاء من عند الطبيب
                 await appointmentModel.findByIdAndUpdate(appointmentId, { 
                     cancellationStatus: 'rejected',
                     cancellationRequest: false 
@@ -215,7 +221,7 @@ const appointmentCancel = async (req, res) => {
                 return res.json({ success: true, message: "تم رفض طلب الإلغاء، الموعد ما زال قائماً" });
             }
         }
-        res.json({ success: false, message: "لا يمكن تنفيذ الإجراء" });
+        res.json({ success: false, message: "لا يمكن تنفيذ الإجراء، الحجز غير موجود أو غير تابع لك" });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }

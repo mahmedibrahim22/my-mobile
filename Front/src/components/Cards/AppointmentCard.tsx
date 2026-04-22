@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 /**
  * 🎫 [AppointmentCard]
  * مكون عرض كارت الحجز - نسخة محسنة تدعم الطبيب والمريض.
+ * تدعم دورة حياة الحجز: طلب إلغاء، قبول/رفض، وإتمام الكشف.
  */
 
 interface AppointmentProps {
@@ -37,12 +38,14 @@ const AppointmentCard: React.FC<AppointmentProps> = ({
 }) => {
     const [loadingAction, setLoadingAction] = useState<'cancel' | 'complete' | 'accept' | 'reject' | null>(null);
 
-    // 🛡️ معالج العمليات الموحد
+    // 🛡️ معالج العمليات الموحد لإدارة الـ Loading والـ Callbacks
     const handleAction = async (action: 'cancel' | 'complete' | 'accept' | 'reject', callback?: () => Promise<void> | void) => {
         if (loadingAction || !callback) return;
         setLoadingAction(action);
         try {
             await callback();
+        } catch (error) {
+            console.error(`Action ${action} failed:`, error);
         } finally {
             setTimeout(() => setLoadingAction(null), 800);
         }
@@ -62,18 +65,21 @@ const AppointmentCard: React.FC<AppointmentProps> = ({
             borderColor: themeStyles.cardBorder 
         }]}>
             
-            {/* الجزء العلوي: البيانات والحالة */}
+            {/* الجزء العلوي: بيانات الطبيب/المريض والحالة */}
             <View style={styles.header}>
                 <View style={styles.infoArea}>
                     <Text style={[styles.name, { color: themeStyles.mainText }]}>
                         {isDoctorView ? `المريض: ${patientName}` : `د. ${doctorName}`}
                     </Text>
                     {!isDoctorView && patientName && (
-                        <Text style={[styles.patientName, { color: themeStyles.subText }]}>المريض: {patientName}</Text>
+                        <Text style={[styles.patientName, { color: themeStyles.subText }]}>
+                            المريض: {patientName}
+                        </Text>
                     )}
                     <Text style={styles.spec}>{speciality}</Text>
                 </View>
                 
+                {/* شارة الحالة (Status Badge) */}
                 <View style={[
                     styles.statusBadge, 
                     status === 'Upcoming' ? styles.statusGreen : 
@@ -97,7 +103,7 @@ const AppointmentCard: React.FC<AppointmentProps> = ({
 
             <View style={[styles.divider, { backgroundColor: themeStyles.divider }]} />
 
-            {/* الجزء السفلي: الوقت والأزرار */}
+            {/* الجزء السفلي: الوقت والأزرار التفاعلية */}
             <View style={styles.footer}>
                 <View style={styles.dateTime}>
                     <Text style={[styles.dateText, { color: themeStyles.subText }]}>📅 {date}</Text>
@@ -105,35 +111,44 @@ const AppointmentCard: React.FC<AppointmentProps> = ({
                 </View>
                 
                 <View style={styles.actionsContainer}>
-                    {/* واجهة المريض: يظهر زر "إلغاء الموعد" فقط إذا كان الموعد قادماً ولم يطلب الإلغاء بعد */}
+                    {/* 1. واجهة المريض: زر طلب الإلغاء */}
                     {!isDoctorView && status === 'Upcoming' && (
                         <TouchableOpacity 
                             onPress={() => handleAction('cancel', onCancel)} 
                             disabled={!!loadingAction}
                             style={styles.cancelBtn}
                         >
-                            {loadingAction === 'cancel' ? <ActivityIndicator size="small" color="#EF4444" /> : <Text style={styles.cancelText}>إلغاء الموعد</Text>}
+                            {loadingAction === 'cancel' ? (
+                                <ActivityIndicator size="small" color="#EF4444" />
+                            ) : (
+                                <Text style={styles.cancelText}>إلغاء الموعد</Text>
+                            )}
                         </TouchableOpacity>
                     )}
 
-                    {/* تنبيه للمريض عند إرسال طلب الإلغاء */}
+                    {/* 2. واجهة المريض: عرض حالة الانتظار */}
                     {!isDoctorView && status === 'PendingCancellation' && (
                         <View style={styles.pendingBadge}>
                             <Text style={styles.pendingText}>في انتظار رد الطبيب</Text>
                         </View>
                     )}
 
-                    {/* واجهة الدكتور: أزرار التحكم */}
+                    {/* 3. واجهة الدكتور: زر إتمام الكشف */}
                     {isDoctorView && status === 'Upcoming' && (
                         <TouchableOpacity 
                             onPress={() => handleAction('complete', onComplete)} 
                             style={styles.completeBtn}
+                            disabled={!!loadingAction}
                         >
-                            {loadingAction === 'complete' ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.completeText}>تم الكشف</Text>}
+                            {loadingAction === 'complete' ? (
+                                <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                                <Text style={styles.completeText}>تم الكشف</Text>
+                            )}
                         </TouchableOpacity>
                     )}
 
-                    {/* واجهة الدكتور عند وجود طلب إلغاء من المريض */}
+                    {/* 4. واجهة الدكتور: التعامل مع طلب الإلغاء (قبول/رفض) */}
                     {isDoctorView && status === 'PendingCancellation' && (
                         <View style={styles.row}>
                             <TouchableOpacity 
@@ -141,14 +156,22 @@ const AppointmentCard: React.FC<AppointmentProps> = ({
                                 style={styles.rejectBtn}
                                 disabled={!!loadingAction}
                             >
-                                {loadingAction === 'reject' ? <ActivityIndicator size="small" color="#64748B" /> : <Text style={styles.rejectText}>رفض</Text>}
+                                {loadingAction === 'reject' ? (
+                                    <ActivityIndicator size="small" color="#64748B" />
+                                ) : (
+                                    <Text style={styles.rejectText}>رفض</Text>
+                                )}
                             </TouchableOpacity>
                             <TouchableOpacity 
                                 onPress={() => handleAction('accept', onAcceptCancel)} 
                                 style={styles.acceptBtn}
                                 disabled={!!loadingAction}
                             >
-                                {loadingAction === 'accept' ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.acceptText}>قبول الإلغاء</Text>}
+                                {loadingAction === 'accept' ? (
+                                    <ActivityIndicator size="small" color="#FFF" />
+                                ) : (
+                                    <Text style={styles.acceptText}>قبول الإلغاء</Text>
+                                )}
                             </TouchableOpacity>
                         </View>
                     )}
@@ -159,35 +182,144 @@ const AppointmentCard: React.FC<AppointmentProps> = ({
 };
 
 const styles = StyleSheet.create({
-    card: { borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5 },
-    header: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'flex-start' },
-    infoArea: { alignItems: 'flex-end', flex: 1, marginLeft: 10 },
-    name: { fontSize: 16, fontWeight: 'bold' },
-    patientName: { fontSize: 13, marginTop: 2, fontWeight: '500' },
-    spec: { fontSize: 12, color: '#14B8A6', fontWeight: '600', marginTop: 4 },
-    statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    card: { 
+        borderRadius: 20, 
+        padding: 16, 
+        marginBottom: 12, 
+        borderWidth: 1, 
+        elevation: 3, 
+        shadowColor: '#000', 
+        shadowOffset: { width: 0, height: 2 }, 
+        shadowOpacity: 0.05, 
+        shadowRadius: 5 
+    },
+    header: { 
+        flexDirection: 'row-reverse', 
+        justifyContent: 'space-between', 
+        alignItems: 'flex-start' 
+    },
+    infoArea: { 
+        alignItems: 'flex-end', 
+        flex: 1, 
+        marginLeft: 10 
+    },
+    name: { 
+        fontSize: 16, 
+        fontWeight: 'bold' 
+    },
+    patientName: { 
+        fontSize: 13, 
+        marginTop: 2, 
+        fontWeight: '500' 
+    },
+    spec: { 
+        fontSize: 12, 
+        color: '#14B8A6', 
+        fontWeight: '600', 
+        marginTop: 4 
+    },
+    statusBadge: { 
+        paddingHorizontal: 10, 
+        paddingVertical: 4, 
+        borderRadius: 8 
+    },
     statusGreen: { backgroundColor: '#F0FDFA' },
     statusRed: { backgroundColor: '#FEF2F2' },
     statusOrange: { backgroundColor: '#FFFBEB' },
     statusGray: { backgroundColor: '#F8FAFC' },
-    statusText: { fontSize: 10, fontWeight: 'bold' },
-    divider: { height: 1, marginVertical: 12 },
-    footer: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
-    dateTime: { alignItems: 'flex-end' },
-    dateText: { fontSize: 12, fontWeight: '600' },
-    timeText: { fontSize: 12, fontWeight: '600', marginTop: 2 },
-    actionsContainer: { flexDirection: 'row' },
-    row: { flexDirection: 'row-reverse' },
-    cancelBtn: { paddingVertical: 8, paddingHorizontal: 15, borderRadius: 12, borderWidth: 1, borderColor: '#FECACA', minWidth: 100, alignItems: 'center' },
-    cancelText: { color: '#EF4444', fontSize: 11, fontWeight: 'bold' },
-    completeBtn: { paddingVertical: 8, paddingHorizontal: 15, borderRadius: 12, backgroundColor: '#0D9488', minWidth: 100, alignItems: 'center' },
-    completeText: { color: '#FFF', fontSize: 11, fontWeight: 'bold' },
-    acceptBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#EF4444', marginLeft: 8 },
-    acceptText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-    rejectBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1' },
-    rejectText: { color: '#64748B', fontSize: 10, fontWeight: 'bold' },
-    pendingBadge: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: 'rgba(217, 119, 6, 0.1)' },
-    pendingText: { color: '#D97706', fontSize: 10, fontWeight: '700' }
+    statusText: { 
+        fontSize: 10, 
+        fontWeight: 'bold' 
+    },
+    divider: { 
+        height: 1, 
+        marginVertical: 12 
+    },
+    footer: { 
+        flexDirection: 'row-reverse', 
+        justifyContent: 'space-between', 
+        alignItems: 'center' 
+    },
+    dateTime: { 
+        alignItems: 'flex-end' 
+    },
+    dateText: { 
+        fontSize: 12, 
+        fontWeight: '600' 
+    },
+    timeText: { 
+        fontSize: 12, 
+        fontWeight: '600', 
+        marginTop: 2 
+    },
+    actionsContainer: { 
+        flexDirection: 'row' 
+    },
+    row: { 
+        flexDirection: 'row-reverse' 
+    },
+    cancelBtn: { 
+        paddingVertical: 8, 
+        paddingHorizontal: 15, 
+        borderRadius: 12, 
+        borderWidth: 1, 
+        borderColor: '#FECACA', 
+        minWidth: 100, 
+        alignItems: 'center' 
+    },
+    cancelText: { 
+        color: '#EF4444', 
+        fontSize: 11, 
+        fontWeight: 'bold' 
+    },
+    completeBtn: { 
+        paddingVertical: 8, 
+        paddingHorizontal: 15, 
+        borderRadius: 12, 
+        backgroundColor: '#0D9488', 
+        minWidth: 100, 
+        alignItems: 'center' 
+    },
+    completeText: { 
+        color: '#FFF', 
+        fontSize: 11, 
+        fontWeight: 'bold' 
+    },
+    acceptBtn: { 
+        paddingVertical: 8, 
+        paddingHorizontal: 12, 
+        borderRadius: 10, 
+        backgroundColor: '#EF4444', 
+        marginLeft: 8 
+    },
+    acceptText: { 
+        color: '#FFF', 
+        fontSize: 10, 
+        fontWeight: 'bold' 
+    },
+    rejectBtn: { 
+        paddingVertical: 8, 
+        paddingHorizontal: 12, 
+        borderRadius: 10, 
+        borderWidth: 1, 
+        borderColor: '#CBD5E1' 
+    },
+    rejectText: { 
+        color: '#64748B', 
+        fontSize: 10, 
+        fontWeight: 'bold' 
+    },
+    pendingBadge: { 
+        paddingVertical: 6, 
+        paddingHorizontal: 12, 
+        borderRadius: 8, 
+        backgroundColor: 'rgba(217, 119, 6, 0.1)' 
+    },
+    pendingText: { 
+        color: '#D97706', 
+        fontSize: 10, 
+        fontWeight: '700' 
+    }
 });
 
 export default memo(AppointmentCard);
